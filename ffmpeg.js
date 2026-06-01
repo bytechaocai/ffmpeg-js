@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { log, error } = require('console');
 
 // 分隔符
 const split = '================================================================================';
@@ -10,6 +11,8 @@ const batchFile = "3_ffmpeg.bat";
 const metaFile = "meta.txt";
 // 视频所在行
 const VIDEO_LINE = "Video: ";
+// 共享数据文件
+const dataJson = 'data.json';
 
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
@@ -25,6 +28,8 @@ console.log(`当前目录:${workDir}`);
 const text = fs.readFileSync(`${workDir}\\${metaFile}`, 'utf-8');
 const fileContent = text.split(os.EOL);
 const batchPath = path.join(workDir, batchFile);
+const dataPath = path.join(workDir, dataJson);
+const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
 // 常见码率缓存
 const bitrateData = [
@@ -86,6 +91,8 @@ function getBitRate(pixelCount) {
 
 // 临时数据，保存文件
 const fileList = [];
+// data.json中的数组下标。data.json中的顺序和meta.txt中的顺序一样，下标可以直接用
+let fileIndex = 0;
 
 let obj;
 for (const line of fileContent) {
@@ -103,6 +110,17 @@ for (const line of fileContent) {
     };
   }
 
+  // 时长
+  const durationIndex = line.indexOf('Duration');
+  if (durationIndex > -1) {
+    // 偏移量要要加上duration长度
+    data[fileIndex].duration = line.substring(durationIndex + 10, durationIndex + 21);
+    // 包含音频的码率
+    // 偏移量=下标+1+bitrate.length
+    data[fileIndex].bitrate = Number.parseInt(line.substring(line.indexOf('bitrate: ') + 9, line.lastIndexOf(' kb/s')));
+
+  }
+
   // 分辨率
   if (line.indexOf(VIDEO_LINE) > -1) {
     // 分辨率
@@ -113,9 +131,12 @@ for (const line of fileContent) {
 
     // 码率
     const bitrateMatch = /\d+ kb\/s/.exec(line);
-    obj.bitrate = bitrateMatch[0];
-    console.log(`处理完成:${JSON.stringify(obj)}`);
+    obj.bitrate = Number.parseInt(bitrateMatch[0]);
+    data[fileIndex].videoBitrate = obj.bitrate;
+    data[fileIndex].audioBitrate = data[fileIndex].bitrate - obj.bitrate;
+    console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
     fileList.push(obj);
+    fileIndex++;
   }
 }
 
@@ -131,6 +152,12 @@ fileList.forEach(e => {
 // 转码过程不需要写入日志，看着就行
 // 清空转码文件
 fs.writeFileSync(batchPath, '');
+log('写入批量脚本');
 fileList.forEach(f => {
+  log(f.command);
   fs.appendFileSync(batchPath, f.command);
 });
+log('批量脚本写入完成');
+
+fs.writeFileSync(dataPath, JSON.stringify(data));
+log('数据文件写入完成');
