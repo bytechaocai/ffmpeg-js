@@ -55,16 +55,16 @@ if (process.argv.length == 4) {
  */
 function getBitRate(pixelCount) {
   // 快速计算码率
-  if (pixelCount < resolutionData[0]) {
-    return resolutionData[0].bitrate;
+  if (pixelCount < bitrateData[0]) {
+    return bitrateData[0].bitrate;
   }
-  for (const res of resolutionData) {
+  for (const res of bitrateData) {
     if (pixelCount === res.pixels) {
       return res.bitrate;
     }
   }
-  if (pixelCount > resolutionData[7]) {
-    return resolutionData[7].bitrate;
+  if (pixelCount > bitrateData[7]) {
+    return bitrateData[7].bitrate;
   }
 
   // 当快速计算失败时，根据目标像素数量的位置就近选择码率
