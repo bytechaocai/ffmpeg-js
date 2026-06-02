@@ -3,13 +3,14 @@ const fs = require('fs');
 const os = require('os');
 const { log, error } = require('node:console');
 
-if (process.argv.length !== 3) {
+if (process.argv.length < 3) {
   error('参数错误');
   process.exit(1);
 }
 
 const workDir = process.argv[2];
 const previewPath = `${workDir}/preview.html`;
+const compressRatioThreshold = Number.parseFloat(process.argv[3]) || 0.9;
 
 const data = JSON.parse(fs.readFileSync(`${workDir}/data.json`).toString());
 for (const ele of data) {
@@ -20,9 +21,7 @@ for (const ele of data) {
   const stat = fs.statSync(`${workDir}/${ele.filename}`);
   ele.newSize = stat.size;
   log(`文件【${ele.filename}】: bitrate=${ele.newBitrate},newSize=${ele.newSize}`);
-  ele.compressRatio = (ele.newSize / ele.size).toLocaleString('zh-cn', {
-    style: 'percent'
-  });
+  ele.compressRatio = (ele.newSize / ele.size);
 }
 
 log('开始写入html');
@@ -45,7 +44,9 @@ for (const ele of data) {
   fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.newBitrate.toLocaleString()}</th>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${ele.compressRatio}</th>${os.EOL}`);
+  fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
+    style: 'percent'
+  })}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `      </tr>${os.EOL}`);
   log(`文件[${ele.filename}]写入完成`);
 }
@@ -84,3 +85,8 @@ fs.appendFileSync(previewPath, '    </tfoot>\r\n');
 
 fs.appendFileSync(previewPath, suffix);
 log('html写入完成');
+log(`以下文件压缩比大于${compressRatioThreshold}:`);
+const warnMsg = data.filter(ele => ele.compressRatio > compressRatioThreshold)
+  .map(e => e.filename)
+  .join(os.EOL);
+log(warnMsg);
