@@ -85,8 +85,8 @@ fs.appendFileSync(previewPath, '    </tfoot>\r\n');
 
 fs.appendFileSync(previewPath, suffix);
 log('html写入完成');
-log(`以下文件压缩比大于${compressRatioThreshold}:`);
-const warnMsg = data.filter(ele => ele.compressRatio > compressRatioThreshold)
-  .map(e => e.filename)
+log(`以下文件压缩比大于等于${compressRatioThreshold}:`);
+const warnMsg = data.filter(ele => ele.compressRatio >= compressRatioThreshold)
+  .map(e => `${e.filename}: ${e.compressRatio.toLocaleString('zh-cn', {style: 'percent'})}`)
   .join(os.EOL);
 log(warnMsg);

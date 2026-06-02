@@ -143,11 +143,8 @@ for (const line of fileContent) {
 
 // 计算新码率，以1080p为1500为基准，按比例计算码率
 fileList.forEach(e => {
-  if (process.argv.length === 4) {
-    e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc -b:v ${getBitRate(e.pixelCount)}k "${e.basename}.mp4"${os.EOL}`;
-  } else {
-    e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc "${e.basename}.mp4"${os.EOL}`;
-  }
+  let videoBitrate = process.argv.length == 4 ? `-b:v ${getBitRate(e.pixelCount)}k` : '';
+  e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}${e.extname}"${os.EOL}`;
 });
 
 // 转码过程不需要写入日志，看着就行
