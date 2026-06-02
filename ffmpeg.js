@@ -134,6 +134,7 @@ for (const line of fileContent) {
     obj.bitrate = Number.parseInt(bitrateMatch[0]);
     data[fileIndex].videoBitrate = obj.bitrate;
     data[fileIndex].audioBitrate = data[fileIndex].bitrate - obj.bitrate;
+    data[fileIndex].scale = `${scaleMatch[1]}x${scaleMatch[2]}`;
     console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
     fileList.push(obj);
     fileIndex++;

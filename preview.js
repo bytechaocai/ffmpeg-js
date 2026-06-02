@@ -39,6 +39,7 @@ fs.appendFileSync(previewPath, '    <tbody>\r\n');
 for (const ele of data) {
   fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.filename}</th>${os.EOL}`);
+  fs.appendFileSync(previewPath, `<th>${ele.scale}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.duration}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.size.toLocaleString()}</th>${os.EOL}`);
   fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
@@ -57,6 +58,7 @@ const sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style:
 fs.appendFileSync(previewPath, '    <tfoot>\r\n');
 fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>合计</th>${os.EOL}`);
+fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumSize.toLocaleString()}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumNewSize.toLocaleString()}</th>${os.EOL}`);
