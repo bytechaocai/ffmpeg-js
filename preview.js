@@ -53,13 +53,26 @@ fs.appendFileSync(previewPath, '    </tbody>\r\n');
 
 // 合计行
 const sumSize = data.reduce((pv, cv) => pv + cv.size, 0);
+const sumSeconds = data.reduce((pv, { duration }) => {
+  // 换算成秒：hh:mm:ss.sss，yy*3600+mm*60+dd毫秒忽略
+  const ts = Number.parseInt(duration.substring(0, 2)) * 3600 +
+    Number.parseInt(duration.substring(3, 5)) * 60 +
+    Number.parseInt(duration.substring(6, 8));
+  return ts + pv;
+}, 0);
+// 将秒换算成时分秒
+const hour = Math.floor(sumSeconds / 3600);
+const minutes = sumSeconds % 3600;
+const minute = Math.floor(minutes / 60);
+const second = minutes % 60;
+const sumDuration = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
 const sumNewSize = data.reduce((pv, cv) => pv + cv.newSize, 0);
 const sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style: 'percent' });
 fs.appendFileSync(previewPath, '    <tfoot>\r\n');
 fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>合计</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
+fs.appendFileSync(previewPath, `<th>${sumDuration}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumSize.toLocaleString()}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumNewSize.toLocaleString()}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
