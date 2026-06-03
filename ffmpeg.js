@@ -125,11 +125,11 @@ for (const line of fileContent) {
     fileList.push(obj);
     fileIndex++;
   }
-  if (fileIndex == data.length - 1) {
+  console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
+  if (fileList.length == data.length) {
     // 元数据已经读取完了，直接跳出循环就行
     break;
   }
-  console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
 }
 
 // 计算新码率，以1080p为1500为基准，按比例计算码率
@@ -148,5 +148,5 @@ fileList.forEach(f => {
 });
 log('批量脚本写入完成');
 
-fs.writeFileSync(dataPath, JSON.stringify(data));
+fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 log('数据文件写入完成');

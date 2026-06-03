@@ -82,5 +82,5 @@ for (const ele of files) {
 }
 fs.appendFileSync(metaPath, '@echo on');
 // data是一个json，只能一起写入，不能像命令一样一行一行写入
-fs.writeFileSync(dataPath, JSON.stringify(dataArray));
+fs.writeFileSync(dataPath, JSON.stringify(dataArray, null, 2));
 log('数据文件写入完成');
