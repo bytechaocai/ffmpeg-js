@@ -16,12 +16,13 @@ const compressRatioThreshold = Number.parseFloat(process.argv[3]) || 0.9;
 const failedFile = [];
 const data = JSON.parse(fs.readFileSync(`${workDir}/data.json`).toString());
 for (const ele of data) {
-  const filePath = `${workDir}/${ele.filename}`;
-  log(`开始处理文件【${ele.filename}】`);
+  const filename = `${ele.basename}.mp4`;
+  const filePath = `${workDir}/${filename}`;
+  log(`开始处理文件【${filename}】`);
   if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
-    warn(`XX 文件[${ele.filename}]不存在或转码失败`);
+    warn(`XX 文件[${filename}]不存在或转码失败`);
     ele.skip = true;
-    failedFile.push(ele.filename);
+    failedFile.push(filename);
     continue;
   }
   const cmd = `ffprobe -hide_banner "${filePath}" 2>&1`;

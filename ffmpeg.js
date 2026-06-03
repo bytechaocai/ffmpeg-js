@@ -90,6 +90,7 @@ function getBitRate(pixelCount) {
 }
 
 // 临时数据，保存文件
+// 从meta.txt中解析文件名，因此不能直接用data.json，因为格式不一样，所以创建临时数组fileList
 const fileList = [];
 // data.json中的数组下标。data.json中的顺序和meta.txt中的顺序一样，下标可以直接用
 let fileIndex = 0;
@@ -129,22 +130,22 @@ for (const line of fileContent) {
     const pixelCount = Number.parseInt(scaleMatch[1]) * Number.parseInt(scaleMatch[2]);
     obj.pixelCount = pixelCount;
 
-    // 码率
-    const bitrateMatch = /\d+ kb\/s/.exec(line);
-    obj.bitrate = Number.parseInt(bitrateMatch[0]);
-    data[fileIndex].videoBitrate = obj.bitrate;
-    data[fileIndex].audioBitrate = data[fileIndex].bitrate - obj.bitrate;
+    // 分辨率
     data[fileIndex].scale = `${scaleMatch[1]}x${scaleMatch[2]}`;
-    console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
     fileList.push(obj);
     fileIndex++;
   }
+  if (fileIndex == data.length - 1) {
+    // 元数据已经读取完了，直接跳出循环就行
+    break;
+  }
+  console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
 }
 
 // 计算新码率，以1080p为1500为基准，按比例计算码率
 fileList.forEach(e => {
   let videoBitrate = process.argv.length == 4 ? `-b:v ${getBitRate(e.pixelCount)}k` : '';
-  e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}${e.extname}"${os.EOL}`;
+  e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
 });
 
 // 转码过程不需要写入日志，看着就行

@@ -16,9 +16,9 @@ const compressBatch = "5_7zip.bat";
 // 保存元数据的文本文件
 const metaFile = "meta.txt";
 // 视频文件扩展名
-const extArray = ['avi', 'mp4', 'mov', 'ts'];
+const extArray = ['avi', 'mp4', 'mov', 'ts', 'm4v'];
 // 共享数据，里面包含要转码的文件的信息：文件名，时长，大小，分辨率，旧码率，新码率，元数据里的创建时间。
-const data = [];
+const dataArray = [];
 // 共享数据文件
 const dataJson = 'data.json';
 /**
@@ -56,20 +56,24 @@ if (fs.existsSync(dataPath)) {
 console.log(`当前目录有${files.length}个文件:${files.join(' || ')}`);
 for (const ele of files) {
   // 跳过非视频文件，这样就不用在转码时加额外判断。
-  if (extArray.findIndex((v, i, o) => ele.endsWith(v)) == -1) {
+  // 扩展名一般是小写，但是部分场景下是大写，由创建文件的人决定
+  if (extArray.findIndex((v, i, o) => ele.endsWith(v) || ele.endsWith(v.toUpperCase())) == -1) {
     console.log(`XX 文件【${ele}】不是视频文件`);
     continue;
   }
   const stat = fs.statSync(`${workDir}/${ele}`);
-  data.push({
-    filename: ele,
+  const parsedPath = path.parse(`${workDir}/${ele}`);
+  const { base: filename, name: basename, ext: extname } = parsedPath;
+  dataArray.push({
+    filename,
     size: stat.size,
+    basename,
+    extname,
   });
 
   fs.appendFileSync(metaPath, `echo ${split}>>${metaFile} 2>&1${os.EOL}`);
   fs.appendFileSync(metaPath, `ffprobe -hide_banner "${ele}">> ${metaFile} 2>&1${os.EOL}`);
   // 重命名脚本
-  const extname = path.extname(ele);
   fs.appendFileSync(renamePath, `rename "${ele}" "${ele.substring(0, ele.length - extname.length)}_${extname}"${os.EOL}`);
   fs.appendFileSync(undoRenamePath, `rename "${ele.substring(0, ele.length - extname.length)}_${extname}" "${ele}"${os.EOL}`);
   // 打包脚本，密码从命令行输入
@@ -78,5 +82,5 @@ for (const ele of files) {
 }
 fs.appendFileSync(metaPath, '@echo on');
 // data是一个json，只能一起写入，不能像命令一样一行一行写入
-fs.writeFileSync(dataPath, JSON.stringify(data));
+fs.writeFileSync(dataPath, JSON.stringify(dataArray));
 log('数据文件写入完成');
