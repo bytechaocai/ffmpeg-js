@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { log, error } = require('console');
+const bitrateData = require('./bitrate.json');
 
 // 分隔符
 const split = '================================================================================';
@@ -31,17 +32,6 @@ const batchPath = path.join(workDir, batchFile);
 const dataPath = path.join(workDir, dataJson);
 const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
-// 常见码率缓存
-const bitrateData = [
-  { pixels: 102240, magnification: 0.2, diff: 128160 }, // 240P 426x240 200
-  { pixels: 230400, magnification: 0.4, diff: 179520 }, // 360P 640x360 400
-  { pixels: 409920, magnification: 0.5, diff: 511680 }, // 480P 854x480 500
-  { pixels: 921600, magnification: 0.8, diff: 1152000 }, // 720P 1280x720 800
-  { pixels: 2073600, magnification: 1, diff: 1612800 }, // 1080P (基准) 1920x1080 1000
-  { pixels: 3686400, magnification: 1.78, diff: 4608000 }, // 2K 2560x1440 1780
-  { pixels: 8294400, magnification: 4, diff: 24883200 }, // 4K 3840x2160 4000
-  { pixels: 33177600, magnification: 8, diff: null } // 8K 7680x4320 8000
-];
 
 // 基准分辨率，没有输入分辨率时由ffmpeg自己选择分辨率
 if (process.argv.length == 4) {
