@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { log } = require('console');
+const ext = require('./ext.json');
 
 // 分隔符
 const split = '================================================================================';
@@ -15,8 +16,8 @@ const undoRenameBatch = "4_undorename.bat";
 const compressBatch = "5_7zip.bat";
 // 保存元数据的文本文件
 const metaFile = "meta.txt";
-// 视频文件扩展名
-const extArray = ['avi', 'mp4', 'mov', 'ts', 'm4v'];
+// 视频文件扩展名，ext中也是扩展名数组
+const extArray = ['avi', 'mp4'].concat(ext);
 // 共享数据，里面包含要转码的文件的信息：文件名，时长，大小，分辨率，旧码率，新码率，元数据里的创建时间。
 const dataArray = [];
 // 共享数据文件
@@ -49,6 +50,7 @@ fs.appendFileSync(metaPath, `@echo off${os.EOL}`);
 
 let files;
 if (fs.existsSync(dataPath)) {
+  log('存在data.json文件');
   files = JSON.parse(fs.readFileSync(dataPath).toString()).map(e => e.filename);
 } else {
   files = fs.readdirSync(workDir);

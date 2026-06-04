@@ -65,13 +65,13 @@ function getBitRate(pixelCount) {
   // 当快速计算失败时，根据目标像素数量的位置就近选择码率
   for (let i = 0; i < bitrateData.length; i++) {
     const data = bitrateData[i];
-    const temp = pixelCount + Math.random() * 100000;
+    const temp = pixelCount + Math.random() * 1000;
     // 快速计算已经过了
     if (temp > data.pixels && i != 7) {
       continue;
     }
-    const n = (pixelCount - data.pixels) / data.diff;
-    if (n < 0.5) {
+    const n = Math.abs((pixelCount - data.pixels) / data.diff);
+    if (n < 0.5 && i > 0) {
       return bitrateData[i - 1].bitrate;
     } else {
       return bitrateData[i].bitrate;
@@ -79,31 +79,14 @@ function getBitRate(pixelCount) {
   }
 }
 
-// 临时数据，保存文件
-// 从meta.txt中解析文件名，因此不能直接用data.json，因为格式不一样，所以创建临时数组fileList
-const fileList = [];
 // data.json中的数组下标。data.json中的顺序和meta.txt中的顺序一样，下标可以直接用
 let fileIndex = 0;
-
-let obj;
 for (const line of fileContent) {
-  // 文件名
-  if (line.indexOf('Input #0,') > -1) {
-    obj = new Object();
-    const filename = line.substring(line.indexOf('\'') + 1, line.length - 2);
-    const extname = path.extname(filename);
-    const basename = filename.substring(0, filename.length - extname.length);
-    obj = {
-      ...obj,
-      filename,
-      basename,
-      extname
-    };
-  }
 
   // 时长
   const durationIndex = line.indexOf('Duration');
   if (durationIndex > -1) {
+    console.log(`开始处理文件:${JSON.stringify(data[fileIndex])}`);
     // 偏移量要要加上duration长度
     data[fileIndex].duration = line.substring(durationIndex + 10, durationIndex + 21);
     // 包含音频的码率
@@ -118,35 +101,45 @@ for (const line of fileContent) {
     const scaleMatch = / (\d+)x(\d+)([, ])/.exec(line);
     // 像素数量
     const pixelCount = Number.parseInt(scaleMatch[1]) * Number.parseInt(scaleMatch[2]);
-    obj.pixelCount = pixelCount;
+    data[fileIndex].pixelCount = pixelCount;
 
     // 分辨率
     data[fileIndex].scale = `${scaleMatch[1]}x${scaleMatch[2]}`;
-    fileList.push(obj);
     fileIndex++;
-  }
-  console.log(`处理完成:${JSON.stringify(data[fileIndex])}`);
-  if (fileList.length == data.length) {
-    // 元数据已经读取完了，直接跳出循环就行
-    break;
   }
 }
 
 // 计算新码率，以1080p为1500为基准，按比例计算码率
-fileList.forEach(e => {
-  let videoBitrate = process.argv.length == 4 ? `-b:v ${getBitRate(e.pixelCount)}k` : '';
+const ignoredArray = [];
+data.forEach(e => {
+  const newBitrate = getBitRate(e.pixelCount);
+  let videoBitrate = process.argv.length == 4 ? `-b:v ${newBitrate}k` : '';
+  e.targetBitrate = newBitrate;
+  // 要加上音频分辨率，大部分时候音频都是128
+  if ((newBitrate + 128) >= e.bitrate) {
+    log(`文件[${e.filename}]的新码率大于等于旧码率，跳过转码`);
+    e.ignore = true;
+    ignoredArray.push(e);
+    return;
+  }
   e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
 });
 
-// 转码过程不需要写入日志，看着就行
-// 清空转码文件
-fs.writeFileSync(batchPath, '');
+// 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
+fs.writeFileSync(batchPath, 'echo %date% %time% > data.txt');
 log('写入批量脚本');
-fileList.forEach(f => {
+data.forEach(f => {
+  if (f.ignore) {
+    return;
+  }
   log(f.command);
   fs.appendFileSync(batchPath, f.command);
 });
-log('批量脚本写入完成');
+fs.writeFileSync(batchPath, 'echo %date% %time% >> data.txt');
+log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳过转码:');
+ignoredArray.forEach(ele => {
+  log(`[${ele.filename} ${ele.scale}] [${ele.bitrate} ${ele.targetBitrate}`);
+});
 
 fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 log('数据文件写入完成');

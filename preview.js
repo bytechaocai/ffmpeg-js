@@ -15,13 +15,21 @@ const compressRatioThreshold = Number.parseFloat(process.argv[3]) || 0.9;
 // 转码失败的文件
 const failedFile = [];
 const data = JSON.parse(fs.readFileSync(`${workDir}/data.json`).toString());
+const started = fs.existsSync(`${workDir}/data.txt`);
 for (const ele of data) {
   const filename = `${ele.basename}.mp4`;
   const filePath = `${workDir}/${filename}`;
   log(`开始处理文件【${filename}】`);
+  if (!started || ele.ignore) {
+    ele.compressRatio = (ele.targetBitrate / ele.bitrate);
+    if (ele.ignore) {
+      warn(`XX 文件[${filename}]已跳过`);
+    }
+    continue;
+  }
   if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
     warn(`XX 文件[${filename}]不存在或转码失败`);
-    ele.skip = true;
+    ele.fail = true;
     failedFile.push(filename);
     continue;
   }
@@ -47,24 +55,44 @@ fs.writeFileSync(previewPath, prefix);
 fs.appendFileSync(previewPath, '    <tbody>\r\n');
 for (const ele of data) {
   fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${ele.filename}</th>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${ele.scale}</th>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${ele.duration}</th>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${ele.size.toLocaleString()}</th>${os.EOL}`);
-  if (!ele.skip) {
-    fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
+  fs.appendFileSync(previewPath, `<th>${ele.filename}</th>${os.EOL}`); // 文件名
+  fs.appendFileSync(previewPath, `<th>${ele.scale}</th>${os.EOL}`); // 分辨率
+  fs.appendFileSync(previewPath, `<th>${ele.duration}</th>${os.EOL}`); // 时长
+  fs.appendFileSync(previewPath, `<th>${ele.size.toLocaleString()}</th>${os.EOL}`); // 文件大小
+  // 两种状态，已运行转码任务和未运行转码任务
+  if (started) {
+    // 新文件大小
+    if (ele.ignore) {
+      fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
+    } else if (ele.fail) {
+      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
+    } else {
+      fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
+    }
+    // 旧码率
+    fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`);
+    // 新码率和压缩比
+    if (ele.ignore) {
+      fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`);
+      fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
+        style: 'percent'
+      })}</th>${os.EOL}`);
+    } else if (ele.fail) {
+      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
+      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
+    } else {
+      fs.appendFileSync(previewPath, `<th>${ele.newBitrate.toLocaleString()}</th>${os.EOL}`);
+      fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
+        style: 'percent'
+      })}</th>${os.EOL}`);
+    }
   } else {
-    fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
-  }
-  fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`);
-  if (!ele.skip) {
-    fs.appendFileSync(previewPath, `<th>${ele.newBitrate.toLocaleString()}</th>${os.EOL}`);
+    fs.appendFileSync(previewPath, "<th>-</th>\r\n"); // 新文件大小
+    fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`); // 旧码率
+    fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`); // 新码率
     fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
       style: 'percent'
-    })}</th>${os.EOL}`);
-  } else {
-    fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
-    fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
+    })}</th>${os.EOL}`); // 压缩比
   }
   fs.appendFileSync(previewPath, `      </tr>${os.EOL}`);
   log(`文件[${ele.filename}]写入完成`);
@@ -72,9 +100,9 @@ for (const ele of data) {
 fs.appendFileSync(previewPath, '    </tbody>\r\n');
 
 // 合计行
-const sumSize = data.reduce((pv, cv) => cv.skip ? pv : pv + cv.size, 0);
-const sumSeconds = data.reduce((pv, { duration, skip }) => {
-  if (skip) {
+const sumSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.size, 0);
+const sumSeconds = data.reduce((pv, { duration, fail, ignore }) => {
+  if (fail || ignore) {
     return pv;
   }
   // 换算成秒：hh:mm:ss.sss，yy*3600+mm*60+dd毫秒忽略
@@ -89,7 +117,7 @@ const minutes = sumSeconds % 3600;
 const minute = Math.floor(minutes / 60);
 const second = minutes % 60;
 const sumDuration = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
-const sumNewSize = data.reduce((pv, cv) => cv.skip ? pv : pv + cv.newSize, 0);
+const sumNewSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.newSize, 0);
 const sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style: 'percent' });
 fs.appendFileSync(previewPath, '    <tfoot>\r\n');
 fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
