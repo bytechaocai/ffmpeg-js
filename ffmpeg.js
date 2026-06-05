@@ -126,7 +126,7 @@ data.forEach(e => {
 });
 
 // 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
-fs.writeFileSync(batchPath, 'echo %date% %time% > data.txt');
+fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
 log('写入批量脚本');
 data.forEach(f => {
   if (f.ignore) {
@@ -135,7 +135,7 @@ data.forEach(f => {
   log(f.command);
   fs.appendFileSync(batchPath, f.command);
 });
-fs.writeFileSync(batchPath, 'echo %date% %time% >> data.txt');
+fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
 log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳过转码:');
 ignoredArray.forEach(ele => {
   log(`[${ele.filename} ${ele.scale}] [${ele.bitrate} ${ele.targetBitrate}`);
