@@ -16,15 +16,27 @@
 
 ## 使用方式
 
-假设你要转码的视频目录是`c:/path/of/video` 执行`node ffprobe.js c:/path/of/video`，会在`c:/path/of/video`下生成以下文件：
+假设你要转码的视频目录是`c:/path/of/video`，代码目录是`c:/path/of/code`，则按以下顺序运行命令，js在代码目录运行，bat在视频目录运行，且需要运行`chcp 65001`将命令行编码改为`utf-8`，否则会报错。
 
-- `1_meta.bat`：获取元数据并保存在`meta.txt`中，脚本开头会关闭回显，结束后开启回显。
-- `meta.txt`：当前目录下视频的元数据，以80个等号分隔。
+- `node ffprobe.js c:/path/of/video`: 在视频目录生成`data.json`、`1_meta.bat`、`2_rename.bat`、`4_undorename.bat`和`5_7zip.bat`。
+- `1_meta.bat`：获取元数据并保存在`meta.txt`中，脚本开头会关闭回显，结束后开启回显，元数据以80个等号分割，方便阅读。
+- `node ffmpeg.js c:/path/of/video`：在视频目录生成`3_ffmpeg.bat`并将码率相关数据写入`data.json`。
+- `node preview.js c:/path/of/video`：生成`preview.html`，展示压缩比。
 - `2_rename.bat`：重命名文件，在文件名后加下划线。
+- `3_ffmpeg.bat`：开始转码，此使只需要等待转码完成或报错就行，视频多总时长多文件大的情况下建议挂机或者睡觉。
 - `4_undorename.bat`：用来撤销重命名，删除文件名后的下划线。
-- `5_7zip.bat`：加密打包文件。
+- `5_7zip.bat password`：加密打包转码后的文件，必须输入密码参数。
 
-然后执行`node ffprobe.js c:/path/of/video`，就会在`c:/path/of/video`下生成一个`3_ffmpeg.bat`。批处理脚本生成后，按数字顺序执行即可，执行前需要先执行`chcp 65001`将命令行编码改为`utf-8`，否则`ffprobe`无法识别中文导致报错参数错误。
+当视频目录下有`data.json`时，`ffprobe.js`会读取该文件中的文件名而不是遍历视频目录。`ffmpeg.js`可以有一个额外的基准码率参数，运行时会以该码率为基准计算其他分辨率的码率，如果新码率大于旧码率则跳过该文件。`preview.js`也有一个参数，当压缩率大于此值会输出警告。
+
+`preview.js`可以在转码前运行也可以在转码后运行，当视频目录里没有`data.txt`时视作没有开始转码，此使展示的是预期码率和压缩率，否则展示实际结果。`preview.js`生成以下格式的html：
+
+| 文件名 | 分辨率 | 时长 | 文件大小（字节） | 新文件大小（字节） | 码率（kb/s） | 新码率（kb/s） | 压缩比 |
+| ----- | ----- | --- | ------------ | ---------------- | ----------- | ------------ | ----- |
+| input video.mp4 | 1920x1080 | 01:00:00.00 | 10240 | 1024 | 3000 | 1000 | 10% |
+| 合计   | - | 01:00:00.00 | 10240 | 1024 | - | - | 10 |
+
+没有转码时，压缩率用码率计算，转码后，压缩率用文件大小计算。
 
 所有生成的脚本除了`1_meta.bat`会将日志（结果）输到文件外，其余脚本都不会将日志输出到文件。所有脚本都在`c:/path/of/video`下直接执行，`3_ffmpeg.bat`有可选参数基准码率，后文会介绍，`5_7zip.bat`需要密码参数，比如`5_7zip.bat 123456`，123456就是密码，其余脚本都不需要参数。
 
@@ -38,9 +50,11 @@
 - `4_undorename.bat`：`rename "input_video_.mp4" input_video.mp4"`
 - `5_7zip.bat`：`7z a "input video.mp4.7z" -mx0 -p%1% -mhe "input video.mp4"`
 
+若`ffmpeg.js`运行时没有基准码率参数，则转码时不会指定码率而是由ffmpeg自己决定码率。
+
 ## 基准码率
 
-`ffmpeg.js`中包含一个json数组：
+`ffmpeg.js`会从`bitrate.json`中引入一个数组，该数组如下：
 
 ```json
 const bitrateData = [
