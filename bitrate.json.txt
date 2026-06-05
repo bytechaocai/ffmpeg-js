@@ -1,0 +1,52 @@
+// 码率速查表。本文件会添加到git，拉取代码后需要在本地改扩展名然后根据需求自定义倍率
+// description可选，作为注释使用，程序中不会用到此值。
+[
+  {
+    "pixels": 102240,
+    "magnification": 0.2,
+    "diff": 128160,
+    "description": "p240 426x240"
+  },
+  {
+    "pixels": 230400,
+    "magnification": 0.4,
+    "diff": 179520,
+    "description": "p360 640x360"
+  },
+  {
+    "pixels": 409920,
+    "magnification": 0.5,
+    "diff": 511680,
+    "description": "p480 854x480"
+  },
+  {
+    "pixels": 921600,
+    "magnification": 0.8,
+    "diff": 1152000,
+    "description": "p720 1280x720"
+  },
+  {
+    "pixels": 2073600,
+    "magnification": 1,
+    "diff": 1612800,
+    "description": "p1080 (基准) 1920x1080"
+  },
+  {
+    "pixels": 3686400,
+    "magnification": 1.25,
+    "diff": 4608000,
+    "description": "p2 2560x1440"
+  },
+  {
+    "pixels": 8294400,
+    "magnification": 1.5,
+    "diff": 24883200,
+    "description": "p4 3840x2160"
+  },
+  {
+    "pixels": 33177600,
+    "magnification": 2,
+    "diff": null,
+    "description": "p8 7680x4320"
+  }
+]
