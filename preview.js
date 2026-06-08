@@ -104,7 +104,6 @@ for (const ele of data) {
 fs.appendFileSync(previewPath, '    </tbody>\r\n');
 
 // 合计行
-const sumSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.size, 0);
 const sumSeconds = data.reduce((pv, { duration, fail, ignore }) => {
   if (fail || ignore) {
     return pv;
@@ -121,15 +120,23 @@ const minutes = sumSeconds % 3600;
 const minute = Math.floor(minutes / 60);
 const second = minutes % 60;
 const sumDuration = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
+let sumCompressRatio;
+const sumSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.size, 0);
 const sumNewSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.newSize, 0);
-const sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style: 'percent' });
+if (started) {
+  sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style: 'percent' });
+} else {
+  const sumBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.bitrate, 0);
+  const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
+  sumCompressRatio = (sumTargetBitrate / sumBitrate).toLocaleString('zh-cn', { style: 'percent' });
+}
 fs.appendFileSync(previewPath, '    <tfoot>\r\n');
 fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>合计</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumDuration}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumSize.toLocaleString()}</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>${sumNewSize.toLocaleString()}</th>${os.EOL}`);
+fs.appendFileSync(previewPath, `<th>${started ? sumNewSize.toLocaleString() : '-'}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumCompressRatio.toLocaleString()}</th>${os.EOL}`);
