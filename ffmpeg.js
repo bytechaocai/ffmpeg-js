@@ -128,11 +128,9 @@ data.forEach(e => {
 // 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
 fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
 log('写入批量脚本');
-data.forEach(f => {
-  if (f.ignore) {
-    return;
-  }
+data.filter(p => !p.ignore).forEach((f, i) => {
   log(f.command);
+  fs.appendFileSync(batchPath, `echo 当前进度: ${i + 1}/${data.length}${os.EOL}`);
   fs.appendFileSync(batchPath, f.command);
 });
 fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
