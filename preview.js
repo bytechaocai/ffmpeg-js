@@ -87,7 +87,11 @@ for (const ele of data) {
       })}</th>${os.EOL}`);
     }
   } else {
-    fs.appendFileSync(previewPath, "<th>-</th>\r\n"); // 新文件大小
+    if (ele.ignore) {
+      fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
+    } else {
+      fs.appendFileSync(previewPath, "<th>-</th>\r\n"); // 新文件大小
+    }
     fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`); // 旧码率
     fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`); // 新码率
     fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
