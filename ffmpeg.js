@@ -14,6 +14,8 @@ const metaFile = "meta.txt";
 const VIDEO_LINE = "Video: ";
 // 共享数据文件
 const dataJson = 'data.json';
+// 码率参考值里的最后一个码率
+const bitrateIndex = bitrateData.length;
 
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
@@ -58,8 +60,8 @@ function getBitRate(pixelCount) {
       return res.bitrate;
     }
   }
-  if (pixelCount > bitrateData[7]) {
-    return bitrateData[7].bitrate;
+  if (pixelCount > bitrateData[bitrateIndex]) {
+    return bitrateData[bitrateIndex].bitrate;
   }
 
   // 当快速计算失败时，根据目标像素数量的位置就近选择码率
@@ -67,7 +69,7 @@ function getBitRate(pixelCount) {
     const data = bitrateData[i];
     const temp = pixelCount + Math.random() * 1000;
     // 快速计算已经过了
-    if (temp > data.pixels && i != 7) {
+    if (temp > data.pixels && i != bitrateIndex) {
       continue;
     }
     const n = Math.abs((pixelCount - data.pixels) / data.diff);
