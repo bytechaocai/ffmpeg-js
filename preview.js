@@ -53,8 +53,11 @@ log('html模板解析完成');
 
 fs.writeFileSync(previewPath, prefix);
 fs.appendFileSync(previewPath, '    <tbody>\r\n');
-for (const ele of data) {
+for (let i = 0; i < data.length; i++) {
+  const ele = data[i];
+
   fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
+  fs.appendFileSync(previewPath, `<th>${i + 1}</th>${os.EOL}`); // 序号
   fs.appendFileSync(previewPath, `<th>${ele.filename}</th>${os.EOL}`); // 文件名
   fs.appendFileSync(previewPath, `<th>${ele.scale}</th>${os.EOL}`); // 分辨率
   fs.appendFileSync(previewPath, `<th>${ele.duration}</th>${os.EOL}`); // 时长
@@ -132,7 +135,7 @@ if (started) {
 }
 fs.appendFileSync(previewPath, '    <tfoot>\r\n');
 fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>合计</th>${os.EOL}`);
+fs.appendFileSync(previewPath, `<th colspan="2">合计</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumDuration}</th>${os.EOL}`);
 fs.appendFileSync(previewPath, `<th>${sumSize.toLocaleString()}</th>${os.EOL}`);

@@ -132,7 +132,7 @@ fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
 log('写入批量脚本');
 data.filter(p => !p.ignore).forEach((f, i) => {
   log(f.command);
-  fs.appendFileSync(batchPath, `echo 当前进度: ${i + 1}/${data.length}${os.EOL}`);
+  fs.appendFileSync(batchPath, `echo 视频时长: ${f.duration}, 当前进度: ${i + 1}/${data.length}${os.EOL}`);
   fs.appendFileSync(batchPath, f.command);
 });
 fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
