@@ -124,7 +124,7 @@ data.forEach(e => {
     ignoredArray.push(e);
     return;
   }
-  e.command = `ffmpeg -hide_banner -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
+  e.command = `ffmpeg -hide_banner -hwaccel cuda -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
 });
 
 // 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间

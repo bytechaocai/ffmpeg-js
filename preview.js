@@ -9,13 +9,16 @@ if (process.argv.length < 3) {
 }
 
 const workDir = process.argv[2];
-const previewPath = `${workDir}/preview.html`;
+let previewPath = `${workDir}/summary.html`;
 const compressRatioThreshold = Number.parseFloat(process.argv[3]) || 0.9;
 
 // 转码失败的文件
 const failedFile = [];
 const data = JSON.parse(fs.readFileSync(`${workDir}/data.json`).toString());
 const started = fs.existsSync(`${workDir}/data.txt`);
+if (!started) {
+  previewPath = `${workDir}/preview.html`;
+}
 for (const ele of data) {
   const filename = `${ele.basename}.mp4`;
   const filePath = `${workDir}/${filename}`;
