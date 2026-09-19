@@ -49,6 +49,8 @@ fs.writeFileSync(compressPath, '');
 fs.appendFileSync(metaPath, `@echo off${os.EOL}`);
 
 let files;
+// 文件下表，从1开始，拼接在脚本分隔符后面，用来快速报错文件
+let fileIndex = 1;
 if (fs.existsSync(dataPath)) {
   log('存在data.json文件');
   files = JSON.parse(fs.readFileSync(dataPath).toString()).map(e => e.filename);
@@ -73,7 +75,7 @@ for (const ele of files) {
     extname,
   });
 
-  fs.appendFileSync(metaPath, `echo ${split}>>${metaFile} 2>&1${os.EOL}`);
+  fs.appendFileSync(metaPath, `echo ===【${fileIndex++}】${split}>>${metaFile} 2>&1${os.EOL}`);
   fs.appendFileSync(metaPath, `ffprobe -hide_banner "${ele}">> ${metaFile} 2>&1${os.EOL}`);
   // 重命名脚本
   fs.appendFileSync(renamePath, `rename "${ele}" "${ele.substring(0, ele.length - extname.length)}_${extname}"${os.EOL}`);
