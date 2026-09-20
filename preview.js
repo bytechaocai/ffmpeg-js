@@ -2,6 +2,7 @@ const cps = require('node:child_process');
 const fs = require('fs');
 const os = require('os');
 const { log, error, warn } = require('node:console');
+const { META_KEY } = require('./constants');
 
 if (process.argv.length < 3) {
   error('参数错误');
@@ -23,16 +24,18 @@ for (const ele of data) {
   const filename = `${ele.basename}.mp4`;
   const filePath = `${workDir}/${filename}`;
   log(`开始处理文件【${filename}】`);
-  if (!started || ele.ignore) {
+  if (!started || ele[META_KEY.ignore]) {
     ele.compressRatio = (ele.targetBitrate / ele.bitrate);
-    if (ele.ignore) {
+    if (ele[META_KEY.error]) {
+      warn(`XX 文件[${filename}]解析失败`);
+    } else if (ele[META_KEY.ignore]) {
       warn(`XX 文件[${filename}]已跳过`);
     }
     continue;
   }
   if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
     warn(`XX 文件[${filename}]不存在或转码失败`);
-    ele.fail = true;
+    ele[META_KEY.fail] = true;
     failedFile.push(filename);
     continue;
   }
@@ -68,9 +71,13 @@ for (let i = 0; i < data.length; i++) {
   // 两种状态，已运行转码任务和未运行转码任务
   if (started) {
     // 新文件大小
-    if (ele.ignore) {
-      fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
-    } else if (ele.fail) {
+    if (ele[META_KEY.ignore]) {
+      if (ele[META_KEY.error]) {
+        fs.appendFileSync(previewPath, `<th>解析失败: ${ele.error || '未知'}</th>${os.EOL}`);
+      } else {
+        fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
+      }
+    } else if (ele[META_KEY.fail]) {
       fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
     } else {
       fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
@@ -78,12 +85,12 @@ for (let i = 0; i < data.length; i++) {
     // 旧码率
     fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`);
     // 新码率和压缩比
-    if (ele.ignore) {
+    if (ele[META_KEY.ignore]) {
       fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`);
       fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
         style: 'percent'
       })}</th>${os.EOL}`);
-    } else if (ele.fail) {
+    } else if (ele[META_KEY.fail]) {
       fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
       fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
     } else {
@@ -93,8 +100,12 @@ for (let i = 0; i < data.length; i++) {
       })}</th>${os.EOL}`);
     }
   } else {
-    if (ele.ignore) {
-      fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
+    if (ele[META_KEY.ignore]) {
+      if (ele[META_KEY.error]) {
+        fs.appendFileSync(previewPath, `<th>解析失败: ${ele.error || '未知'}</th>${os.EOL}`);
+      } else {
+        fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
+      }
     } else {
       fs.appendFileSync(previewPath, "<th>-</th>\r\n"); // 新文件大小
     }

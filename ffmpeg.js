@@ -3,21 +3,7 @@ const path = require('path');
 const os = require('os');
 const { log, error, warn } = require('console');
 const bitrateData = require('./bitrate.json');
-
-const META_KEY = {
-  filename: 'filename',
-  basename: 'basename',
-  extname: 'extname',
-  duration: 'duration',
-  bitrate: 'bitrate',
-  pixelCount: 'pixelCount',
-  scale: 'scale',
-  command: 'command',
-  ignore: 'ignore',
-  targetBitrate: 'targetBitrate',
-  // 当元数据解析出错时，此值为true，此使跳过当前文件所有行，直到下一个文件开始解析。
-  error: 'error'
-};
+const { META_KEY } = require('./constants');
 
 // 最终的批量文件
 const batchFile = "3_ffmpeg.bat";
@@ -125,7 +111,7 @@ for (const line of fileContent) {
     } catch (e) {
       error('读取文件名失败', e);
       processError = true;
-      errorArray.push(`文件【${filename}】读取文件名失败，序号为【${fileIndex}】`);
+      errorArray.push(`文件名解析失败，序号是【${fileIndex}】`);
     }
   }
   // 时长
@@ -179,6 +165,7 @@ data.forEach(e => {
   if (!meta) {
     log(`文件【${e.filename}】出错，跳过处理`);
     e.ignore = true;
+    e.error = '元数据缺失';
     ignoredArray.push(e);
     return;
   }
@@ -191,6 +178,7 @@ data.forEach(e => {
   if (meta.get(META_KEY.error)) {
     log(`文件【${e.filename}】出错，错误原因：${meta.get(META_KEY.error)}`);
     e.ignore = true;
+    e.error = meta.get(META_KEY.error);
     ignoredArray.push(e);
     return;
   }
