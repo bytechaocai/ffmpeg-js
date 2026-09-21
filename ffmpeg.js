@@ -151,22 +151,17 @@ for (const line of fileContent) {
   }
 }
 
-if (errorArray.length > 0) {
-  const errorText = errorArray.join(os.EOL);
-  warn(errorText);
-  fs.writeFileSync(`${workDir}\\error.txt`, errorText, 'utf-8');
-}
-
 // 忽略文件
 const ignoredArray = [];
+// 没有元数据的文件
+const noMetaArray = [];
 // 计算新码率，以1080p为1500为基准，按比例计算码率
 data.forEach(e => {
   const meta = metaMap.get(e.filename);
   if (!meta) {
     log(`文件【${e.filename}】出错，跳过处理`);
-    e.ignore = true;
     e.error = '元数据缺失';
-    ignoredArray.push(e);
+    noMetaArray.push(e[META_KEY.filename]);
     return;
   }
 
@@ -177,9 +172,7 @@ data.forEach(e => {
 
   if (meta.get(META_KEY.error)) {
     log(`文件【${e.filename}】出错，错误原因：${meta.get(META_KEY.error)}`);
-    e.ignore = true;
     e.error = meta.get(META_KEY.error);
-    ignoredArray.push(e);
     return;
   }
   const newBitrate = getBitRate(meta.pixelCount);
@@ -208,6 +201,13 @@ log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳�
 ignoredArray.forEach(ele => {
   log(`[${ele.filename} ${ele.scale}] [${ele.bitrate} ${ele.targetBitrate}`);
 });
-
+log('以下文件出错，请检查:');
+errorArray.forEach(ele => {
+  log(ele);
+});
+log('以下文件没有元数据，请检查:');
+noMetaArray.forEach(ele => {
+  log(ele);
+});
 fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 log('数据文件写入完成');
