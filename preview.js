@@ -57,115 +57,155 @@ const prefix = html.substring(0, index);
 const suffix = html.substring(index + 9);
 log('html模板解析完成');
 
-fs.writeFileSync(previewPath, prefix);
-fs.appendFileSync(previewPath, '    <tbody>\r\n');
-for (let i = 0; i < data.length; i++) {
-  const ele = data[i];
+// 辅助函数：生成单元格
+const cell = (content) => `<th>${content}</th>${os.EOL}`;
 
-  fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
-  fs.appendFileSync(previewPath, `<th>${i + 1}</th>${os.EOL}`); // 序号
-  fs.appendFileSync(previewPath, `<th>${ele.filename}</th>${os.EOL}`); // 文件名
-  fs.appendFileSync(previewPath, `<th>${ele.scale}</th>${os.EOL}`); // 分辨率
-  fs.appendFileSync(previewPath, `<th>${ele.duration}</th>${os.EOL}`); // 时长
-  fs.appendFileSync(previewPath, `<th>${ele.size.toLocaleString()}</th>${os.EOL}`); // 文件大小
-  // 两种状态，已运行转码任务和未运行转码任务
-  if (started) {
-    // 新文件大小
-    if (ele[META_KEY.ignore]) {
-      if (ele[META_KEY.error]) {
-        fs.appendFileSync(previewPath, `<th>解析失败: ${ele.error || '未知'}</th>${os.EOL}`);
-      } else {
-        fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
-      }
-    } else if (ele[META_KEY.fail]) {
-      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
-    } else {
-      fs.appendFileSync(previewPath, `<th>${ele.newSize.toLocaleString()}</th>${os.EOL}`);
-    }
-    // 旧码率
-    fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`);
-    // 新码率和压缩比
-    if (ele[META_KEY.ignore]) {
-      fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`);
-      fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
-        style: 'percent'
-      })}</th>${os.EOL}`);
-    } else if (ele[META_KEY.fail]) {
-      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
-      fs.appendFileSync(previewPath, "<th>转码失败</th>\r\n");
-    } else {
-      fs.appendFileSync(previewPath, `<th>${ele.newBitrate.toLocaleString()}</th>${os.EOL}`);
-      fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
-        style: 'percent'
-      })}</th>${os.EOL}`);
-    }
-  } else {
-    if (ele[META_KEY.ignore]) {
-      if (ele[META_KEY.error]) {
-        fs.appendFileSync(previewPath, `<th>解析失败: ${ele.error || '未知'}</th>${os.EOL}`);
-      } else {
-        fs.appendFileSync(previewPath, "<th>跳过转码</th>\r\n");
-      }
-    } else {
-      fs.appendFileSync(previewPath, "<th>-</th>\r\n"); // 新文件大小
-    }
-    fs.appendFileSync(previewPath, `<th>${ele.bitrate.toLocaleString()}</th>${os.EOL}`); // 旧码率
-    fs.appendFileSync(previewPath, `<th>${ele.targetBitrate.toLocaleString()}</th>${os.EOL}`); // 新码率
-    fs.appendFileSync(previewPath, `<th>${ele.compressRatio.toLocaleString('zh-cn', {
-      style: 'percent'
-    })}</th>${os.EOL}`); // 压缩比
+// 辅助函数：格式化百分比
+const formatPercent = (ratio) => ratio.toLocaleString('zh-cn', { style: 'percent' });
+
+// 辅助函数：生成旧数据列（序号、文件名、分辨率、时长、原大小、原码率）
+const generateOldColumns = (ele, index) => {
+  // error不为空：解析失败，显示错误信息
+  if (ele[META_KEY.error]) {
+    return [
+      cell(index + 1),
+      cell(ele.filename),
+      cell(ele.error),
+      cell(ele.error),
+      cell(ele.size.toLocaleString()),
+      cell(ele.error)
+    ];
   }
-  fs.appendFileSync(previewPath, `      </tr>${os.EOL}`);
+  // ignore不为空：跳过转码
+  if (ele[META_KEY.ignore]) {
+    return [
+      cell(index + 1),
+      cell(ele.filename),
+      cell(ele.scale),
+      cell(ele.duration),
+      cell(ele.size.toLocaleString()),
+      cell(ele.bitrate.toLocaleString())
+    ];
+  }
+  // fail不为空：转码失败
+  if (ele[META_KEY.fail]) {
+    return [
+      cell(index + 1),
+      cell(ele.filename),
+      cell(ele.scale),
+      cell(ele.duration),
+      cell(ele.size.toLocaleString()),
+      cell(ele.bitrate.toLocaleString())
+    ];
+  }
+  // 正常情况
+  return [
+    cell(index + 1),
+    cell(ele.filename),
+    cell(ele.scale),
+    cell(ele.duration),
+    cell(ele.size.toLocaleString()),
+    cell(ele.bitrate.toLocaleString())
+  ];
+};
+
+// 辅助函数：生成新数据列（新大小、新码率、压缩比）
+const generateNewColumns = (ele) => {
+  // error不为空：解析失败，只显示文件大小
+  if (ele[META_KEY.error]) {
+    return [cell(ele.newSize?.toLocaleString() || '-'), cell('-'), cell('-')];
+  }
+  // ignore不为空：跳过转码，新数据显示跳过转码
+  if (ele[META_KEY.ignore]) {
+    return [cell('跳过转码'), cell('跳过转码'), cell('跳过转码')];
+  }
+  // fail不为空：转码失败，新数据显示转码失败
+  if (ele[META_KEY.fail]) {
+    return [cell('转码失败'), cell('转码失败'), cell('转码失败')];
+  }
+  // 正常情况
+  if (started) {
+    return [
+      cell(ele.newSize.toLocaleString()),
+      cell(ele.newBitrate.toLocaleString()),
+      cell(formatPercent(ele.compressRatio))
+    ];
+  }
+  return [
+    cell('-'),
+    cell(ele.targetBitrate.toLocaleString()),
+    cell(formatPercent(ele.compressRatio))
+  ];
+};
+
+// 辅助函数：生成数据行
+const generateRow = (ele, index) => {
+  const cols = [...generateOldColumns(ele, index), ...generateNewColumns(ele)];
   log(`文件[${ele.filename}]写入完成`);
-}
-fs.appendFileSync(previewPath, '    </tbody>\r\n');
+  return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
+};
+
+// 辅助函数：计算总时长
+const calcTotalDuration = (data) => {
+  const sumSeconds = data.reduce((pv, { duration, fail, ignore }) => {
+    if (fail || ignore) return pv;
+    // 换算成秒：hh:mm:ss.sss，yy*3600+mm*60+dd毫秒忽略
+    const ts = Number.parseInt(duration.substring(0, 2)) * 3600 +
+      Number.parseInt(duration.substring(3, 5)) * 60 +
+      Number.parseInt(duration.substring(6, 8));
+    return ts + pv;
+  }, 0);
+  // 将秒换算成时分秒
+  const hour = Math.floor(sumSeconds / 3600);
+  const minutes = sumSeconds % 3600;
+  const minute = Math.floor(minutes / 60);
+  const second = minutes % 60;
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
+};
+
+// 辅助函数：生成合计行
+const generateTotalRow = (data) => {
+  const sumDuration = calcTotalDuration(data);
+  const sumSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.size, 0);
+  const sumNewSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.newSize, 0);
+
+  let sumCompressRatio;
+  if (started) {
+    sumCompressRatio = formatPercent(sumNewSize / sumSize);
+  } else {
+    const sumBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.bitrate, 0);
+    const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
+    sumCompressRatio = formatPercent(sumTargetBitrate / sumBitrate);
+  }
+
+  const cols = [
+    `<th colspan="2">合计</th>${os.EOL}`,
+    cell('-'),
+    cell(sumDuration),
+    cell(sumSize.toLocaleString()),
+    cell(started ? sumNewSize.toLocaleString() : '-'),
+    cell('-'),
+    cell('-'),
+    cell(sumCompressRatio.toLocaleString())
+  ];
+  return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
+};
+
+// 构建表格内容
+const tbodyContent = data.map((ele, i) => generateRow(ele, i)).join('');
+const tbody = `    <tbody>\r\n${tbodyContent}    </tbody>\r\n`;
 
 // 合计行
-const sumSeconds = data.reduce((pv, { duration, fail, ignore }) => {
-  if (fail || ignore) {
-    return pv;
-  }
-  // 换算成秒：hh:mm:ss.sss，yy*3600+mm*60+dd毫秒忽略
-  const ts = Number.parseInt(duration.substring(0, 2)) * 3600 +
-    Number.parseInt(duration.substring(3, 5)) * 60 +
-    Number.parseInt(duration.substring(6, 8));
-  return ts + pv;
-}, 0);
-// 将秒换算成时分秒
-const hour = Math.floor(sumSeconds / 3600);
-const minutes = sumSeconds % 3600;
-const minute = Math.floor(minutes / 60);
-const second = minutes % 60;
-const sumDuration = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
-let sumCompressRatio;
-const sumSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.size, 0);
-const sumNewSize = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.newSize, 0);
-if (started) {
-  sumCompressRatio = (sumNewSize / sumSize).toLocaleString('zh-cn', { style: 'percent' });
-} else {
-  const sumBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.bitrate, 0);
-  const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
-  sumCompressRatio = (sumTargetBitrate / sumBitrate).toLocaleString('zh-cn', { style: 'percent' });
-}
-fs.appendFileSync(previewPath, '    <tfoot>\r\n');
-fs.appendFileSync(previewPath, `      <tr>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th colspan="2">合计</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>${sumDuration}</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>${sumSize.toLocaleString()}</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>${started ? sumNewSize.toLocaleString() : '-'}</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>-</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `<th>${sumCompressRatio.toLocaleString()}</th>${os.EOL}`);
-fs.appendFileSync(previewPath, `      </tr>${os.EOL}`);
+const tfoot = `    <tfoot>\r\n${generateTotalRow(data)}    </tfoot>\r\n`;
 
-fs.appendFileSync(previewPath, '    </tfoot>\r\n');
-
-fs.appendFileSync(previewPath, suffix);
+// 一次性写入文件
+const content = `${prefix}${tbody}${tfoot}${suffix}`;
+fs.writeFileSync(previewPath, content);
 log('html写入完成');
+
 log(`以下文件压缩比大于等于${compressRatioThreshold}:`);
 const warnMsg = data.filter(ele => ele.compressRatio >= compressRatioThreshold)
-  .map(e => `${e.filename}: ${e.compressRatio.toLocaleString('zh-cn', { style: 'percent' })}`)
+  .map(e => `${e.filename}: ${formatPercent(e.compressRatio)}`)
   .join(os.EOL);
 log(warnMsg);
 log('以下文件转码失败:');
