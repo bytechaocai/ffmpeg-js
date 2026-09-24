@@ -25,7 +25,7 @@ const dataJson = 'data.json';
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
  */
-if (process.argv.length !== 3) {
+if (process.argv.length > 4 || (process.argv.length === 4 && process.argv[3] !== '-o')) {
   console.error('参数错误');
   process.exit(1);
 }
@@ -40,6 +40,41 @@ const compressPath = path.join(workDir, compressBatch);
 const dataPath = path.join(workDir, dataJson);
 console.log(`元数据脚本:${metaPath},备份脚本:${renamePath}`);
 
+const askDataAction = () => {
+  while (true) {
+    console.log('data.json 已存在，是否复用？');
+    console.log('❯ 1. 复用');
+    console.log('  2. 覆盖');
+    process.stdout.write('请选择 (1/2): ');
+    const buffer = Buffer.alloc(32);
+    const bytesRead = fs.readSync(0, buffer, 0, buffer.length, null);
+    const answer = buffer.toString('utf8', 0, bytesRead).trim();
+    if (answer === '1' || answer === '2') {
+      return answer === '1' ? 'reuse' : 'overwrite';
+    }
+    console.log('请输入 1 或 2。');
+  }
+};
+
+const getFiles = () => {
+  if (!fs.existsSync(dataPath)) {
+    return fs.readdirSync(workDir);
+  }
+  if (process.argv[3] === '-o') {
+    log('存在data.json文件，使用 -o 参数重新扫描目录并覆盖');
+    return fs.readdirSync(workDir);
+  }
+  const action = askDataAction();
+  if (action === 'reuse') {
+    log('复用data.json中的文件列表');
+    return JSON.parse(fs.readFileSync(dataPath).toString()).map(e => e.filename);
+  }
+  log('重新扫描目录并覆盖data.json');
+  return fs.readdirSync(workDir);
+};
+
+const files = getFiles();
+
 // 清空脚本内容，同时也清空脚本运行结果中的内容
 fs.writeFileSync(metaPath, `echo start>${metaFile}${os.EOL}`);
 fs.writeFileSync(renamePath, '');
@@ -48,15 +83,8 @@ fs.writeFileSync(compressPath, '');
 // 关闭回显，因为ffprobe结果中就有文件
 fs.appendFileSync(metaPath, `@echo off${os.EOL}`);
 
-let files;
 // 文件下表，从1开始，拼接在脚本分隔符后面，用来快速报错文件
 let fileIndex = 1;
-if (fs.existsSync(dataPath)) {
-  log('存在data.json文件');
-  files = JSON.parse(fs.readFileSync(dataPath).toString()).map(e => e.filename);
-} else {
-  files = fs.readdirSync(workDir);
-}
 console.log(`当前目录有${files.length}个文件:${files.join(' || ')}`);
 for (const ele of files) {
   // 跳过非视频文件，这样就不用在转码时加额外判断。

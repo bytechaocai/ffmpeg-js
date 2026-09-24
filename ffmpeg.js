@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { log, error, warn } = require('console');
-const bitrateData = require('./bitrate.json');
 const { META_KEY } = require('./constants');
+
+const bitratePath = path.join(__dirname, 'bitrate.json');
 
 // 最终的批量文件
 const batchFile = "3_ffmpeg.bat";
@@ -13,8 +14,6 @@ const metaFile = "meta.txt";
 const VIDEO_LINE = "Video: ";
 // 共享数据文件
 const dataJson = 'data.json';
-// 码率参考值里的最后一个码率
-const bitrateIndex = bitrateData.length;
 
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
@@ -27,7 +26,22 @@ if (process.argv.length < 3) {
 const workDir = process.argv[2];
 log(`当前目录:${workDir}`);
 
-const text = fs.readFileSync(`${workDir}\\${metaFile}`, 'utf-8');
+const metaPath = path.join(workDir, metaFile);
+const missingFiles = [];
+if (!fs.existsSync(bitratePath)) {
+  missingFiles.push('缺少 bitrate.json，请复制 bitrate.jsonc 并重命名为 bitrate.json，然后删除文件开头的注释行。');
+}
+if (!fs.existsSync(metaPath)) {
+  missingFiles.push(`缺少 ${metaFile}，请先运行 chcp 65001 && 1_meta.bat。`);
+}
+if (missingFiles.length > 0) {
+  missingFiles.forEach(message => error(message));
+  process.exit(1);
+}
+const bitrateData = require(bitratePath);
+// 码率参考值里的最后一个码率
+const bitrateIndex = bitrateData.length - 1;
+const text = fs.readFileSync(metaPath, 'utf-8');
 const fileContent = text.split(os.EOL);
 const batchPath = path.join(workDir, batchFile);
 const dataPath = path.join(workDir, dataJson);
@@ -35,7 +49,7 @@ const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
 
 // 基准分辨率，没有输入分辨率时由ffmpeg自己选择分辨率
-if (process.argv.length == 4) {
+if (process.argv.length === 4) {
   const baseBitrate = Number.parseInt(process.argv[3]);
   log(`将使用基准分辨率:${baseBitrate}`);
   bitrateData.forEach(res => {
@@ -51,7 +65,7 @@ if (process.argv.length == 4) {
  */
 function getBitRate(pixelCount) {
   // 快速计算码率
-  if (pixelCount < bitrateData[0]) {
+  if (pixelCount <= bitrateData[0].pixels) {
     return bitrateData[0].bitrate;
   }
   for (const res of bitrateData) {
@@ -59,23 +73,18 @@ function getBitRate(pixelCount) {
       return res.bitrate;
     }
   }
-  if (pixelCount > bitrateData[bitrateIndex]) {
+  if (pixelCount >= bitrateData[bitrateIndex].pixels) {
     return bitrateData[bitrateIndex].bitrate;
   }
 
-  // 当快速计算失败时，根据目标像素数量的位置就近选择码率
-  for (let i = 0; i < bitrateData.length; i++) {
-    const data = bitrateData[i];
-    const temp = pixelCount + Math.random() * 1000;
-    // 快速计算已经过了
-    if (temp > data.pixels && i != bitrateIndex) {
-      continue;
-    }
-    const n = Math.abs((pixelCount - data.pixels) / data.diff);
-    if (n < 0.5 && i > 0) {
-      return bitrateData[i - 1].bitrate;
-    } else {
-      return bitrateData[i].bitrate;
+  // 在相邻分辨率中选择像素数量更接近的一档
+  for (let i = 1; i < bitrateData.length; i++) {
+    const previous = bitrateData[i - 1];
+    const current = bitrateData[i];
+    if (pixelCount <= current.pixels) {
+      return pixelCount - previous.pixels < current.pixels - pixelCount
+        ? previous.bitrate
+        : current.bitrate;
     }
   }
 }
@@ -191,7 +200,7 @@ data.forEach(e => {
 // 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
 fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
 log('写入批量脚本');
-data.filter(p => !p.ignore).forEach((f, i) => {
+data.filter(p => !p.ignore && p.command).forEach((f, i) => {
   log(f.command);
   fs.appendFileSync(batchPath, `echo 视频时长: ${f.duration}, 当前进度: ${i + 1}/${data.length}${os.EOL}`);
   fs.appendFileSync(batchPath, f.command);
