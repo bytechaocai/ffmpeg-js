@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { parseArgs } = require('util');
 const { log } = require('console');
 const ext = require('./ext.json');
 
@@ -22,23 +23,33 @@ const extArray = ['avi', 'mp4'].concat(ext);
 const dataArray = [];
 // 共享数据文件
 const dataJson = 'data.json';
+const { values: options, positionals } = parseArgs({
+  options: {
+    overwrite: {
+      type: 'boolean',
+      short: 'o'
+    }
+  },
+  allowPositionals: true
+});
+
 /**
- * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
+ * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名、文件大小、比特率、长度、格式
  */
-if (process.argv.length > 4 || (process.argv.length === 4 && process.argv[3] !== '-o')) {
-  console.error('参数错误');
+if (positionals.length !== 1) {
+  console.error('❌ 用法: node ffprobe.js <目录> [-o]');
   process.exit(1);
 }
 
-const workDir = process.argv[2];
-console.log(`当前目录:${workDir}`);
+const workDir = positionals[0];
+console.log(`当前目录【${workDir}】`);
 
 const metaPath = path.join(workDir, metaBatch);
 const renamePath = path.join(workDir, renameBatch);
 const undoRenamePath = path.join(workDir, undoRenameBatch);
 const compressPath = path.join(workDir, compressBatch);
 const dataPath = path.join(workDir, dataJson);
-console.log(`元数据脚本:${metaPath},备份脚本:${renamePath}`);
+console.log(`元数据脚本【${metaPath}】，备份脚本【${renamePath}】`);
 
 const askDataAction = () => {
   while (true) {
@@ -60,16 +71,16 @@ const getFiles = () => {
   if (!fs.existsSync(dataPath)) {
     return fs.readdirSync(workDir);
   }
-  if (process.argv[3] === '-o') {
-    log('存在data.json文件，使用 -o 参数重新扫描目录并覆盖');
+  if (options.overwrite) {
+    log('存在【data.json】文件，使用【-o】参数重新扫描目录并覆盖');
     return fs.readdirSync(workDir);
   }
   const action = askDataAction();
   if (action === 'reuse') {
-    log('复用data.json中的文件列表');
+    log('复用【data.json】中的文件列表');
     return JSON.parse(fs.readFileSync(dataPath).toString()).map(e => e.filename);
   }
-  log('重新扫描目录并覆盖data.json');
+  log('重新扫描目录并覆盖【data.json】');
   return fs.readdirSync(workDir);
 };
 
@@ -85,12 +96,12 @@ fs.appendFileSync(metaPath, `@echo off${os.EOL}`);
 
 // 文件下表，从1开始，拼接在脚本分隔符后面，用来快速报错文件
 let fileIndex = 1;
-console.log(`当前目录有${files.length}个文件:${files.join(' || ')}`);
+console.log(`当前目录有【${files.length}】个文件`);
 for (const ele of files) {
   // 跳过非视频文件，这样就不用在转码时加额外判断。
   // 扩展名一般是小写，但是部分场景下是大写，由创建文件的人决定
   if (extArray.findIndex((v, i, o) => ele.endsWith(v) || ele.endsWith(v.toUpperCase())) == -1) {
-    console.log(`XX 文件【${ele}】不是视频文件`);
+    console.log(`⚠️ 文件【${ele}】不是视频文件`);
     continue;
   }
   const stat = fs.statSync(`${workDir}/${ele}`);
@@ -110,7 +121,7 @@ for (const ele of files) {
   fs.appendFileSync(undoRenamePath, `rename "${ele.substring(0, ele.length - extname.length)}_${extname}" "${ele}"${os.EOL}`);
   // 打包脚本，密码从命令行输入
   fs.appendFileSync(compressPath, `7z a "${ele}.7z" -mx0 -p%1% -mhe "${ele}"${os.EOL}`);
-  log(`文件[${ele}]处理完成`);
+  log(`文件【${ele}】处理完成`);
 }
 fs.appendFileSync(metaPath, '@echo on');
 // data是一个json，只能一起写入，不能像命令一样一行一行写入

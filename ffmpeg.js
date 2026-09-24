@@ -19,7 +19,7 @@ const dataJson = 'data.json';
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
  */
 if (process.argv.length < 3) {
-  error('参数错误');
+  error('❌ 参数错误');
   process.exit(1);
 }
 
@@ -118,7 +118,7 @@ for (const line of fileContent) {
       metaMap.set(filename, currentMeta);
       currentMeta.set(META_KEY.filename, filename);
     } catch (e) {
-      error('读取文件名失败', e);
+      error(`读取文件名失败，错误信息【${e.message}】`);
       processError = true;
       errorArray.push(`文件名解析失败，序号是【${fileIndex}】`);
     }
@@ -133,7 +133,7 @@ for (const line of fileContent) {
       // 偏移量=下标+1+bitrate.length
       currentMeta.set(META_KEY.bitrate, Number.parseInt(line.substring(line.indexOf('bitrate: ') + 9, line.lastIndexOf(' kb/s'))));
     } catch (e) {
-      error(`文件【${filename}】读取时长失败`, e);
+      error(`❌ 文件【${filename}】读取时长失败`, e);
       processError = true;
       currentMeta.set(META_KEY.error, e.message);
       errorArray.push(`文件【${filename}】读取时长失败，序号为【${fileIndex}】`);
@@ -152,7 +152,7 @@ for (const line of fileContent) {
       // 分辨率
       currentMeta.set(META_KEY.scale, `${scaleMatch[1]}x${scaleMatch[2]}`);
     } catch (error) {
-      error(`文件【${filename}】读取分辨率失败`, e);
+      error(`❌ 文件【${filename}】读取分辨率失败`, e);
       processError = true;
       currentMeta.set(META_KEY.error, error.message);
       errorArray.push(`文件【${filename}】读取分辨率失败，序号为【${fileIndex}】`);
@@ -168,7 +168,7 @@ const noMetaArray = [];
 data.forEach(e => {
   const meta = metaMap.get(e.filename);
   if (!meta) {
-    log(`文件【${e.filename}】出错，跳过处理`);
+    log(`❌ 文件【${e.filename}】出错，跳过处理`);
     e.error = '元数据缺失';
     noMetaArray.push(e[META_KEY.filename]);
     return;
@@ -180,7 +180,7 @@ data.forEach(e => {
   }
 
   if (meta.get(META_KEY.error)) {
-    log(`文件【${e.filename}】出错，错误原因：${meta.get(META_KEY.error)}`);
+    log(`❌ 文件【${e.filename}】出错，错误原因：${meta.get(META_KEY.error)}`);
     e.error = meta.get(META_KEY.error);
     return;
   }
@@ -189,7 +189,7 @@ data.forEach(e => {
   e.targetBitrate = newBitrate;
   // 要加上音频分辨率，大部分时候音频都是128
   if ((newBitrate + 128) >= e.bitrate) {
-    log(`文件[${e.filename}]的新码率大于等于旧码率，跳过转码`);
+    log(`⚠️ 文件【${e.filename}】的新码率【${newBitrate}】大于等于旧码率，跳过转码`);
     e.ignore = true;
     ignoredArray.push(e);
     return;
@@ -201,20 +201,20 @@ data.forEach(e => {
 fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
 log('写入批量脚本');
 data.filter(p => !p.ignore && p.command).forEach((f, i) => {
-  log(f.command);
+  log(`执行命令【${f.command.trim()}】`);
   fs.appendFileSync(batchPath, `echo 视频时长: ${f.duration}, 当前进度: ${i + 1}/${data.length}${os.EOL}`);
   fs.appendFileSync(batchPath, f.command);
 });
 fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
 log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳过转码:');
 ignoredArray.forEach(ele => {
-  log(`[${ele.filename} ${ele.scale}] [${ele.bitrate} ${ele.targetBitrate}`);
+  log(`文件【${ele.filename}】分辨率【${ele.scale}】，原码率【${ele.bitrate}】，新码率【${ele.targetBitrate}】`);
 });
-log('以下文件出错，请检查:');
+log('❌ 以下文件出错，请检查:');
 errorArray.forEach(ele => {
   log(ele);
 });
-log('以下文件没有元数据，请检查:');
+log('⚠️ 以下文件没有元数据，请检查:');
 noMetaArray.forEach(ele => {
   log(ele);
 });

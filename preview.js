@@ -5,7 +5,7 @@ const { log, error, warn } = require('node:console');
 const { META_KEY } = require('./constants');
 
 if (process.argv.length < 3) {
-  error('参数错误');
+  error('❌ 参数错误');
   process.exit(1);
 }
 
@@ -25,16 +25,18 @@ for (const ele of data) {
   const filePath = `${workDir}/${filename}`;
   log(`开始处理文件【${filename}】`);
   if (!started || ele[META_KEY.ignore]) {
-    ele.compressRatio = (ele.targetBitrate / ele.bitrate);
+    if (Number.isFinite(ele.targetBitrate) && Number.isFinite(ele.bitrate)) {
+      ele.compressRatio = ele.targetBitrate / ele.bitrate;
+    }
     if (ele[META_KEY.error]) {
-      warn(`XX 文件[${filename}]解析失败`);
+      warn(`⚠️ 文件【${filename}】解析失败`);
     } else if (ele[META_KEY.ignore]) {
-      warn(`XX 文件[${filename}]已跳过`);
+      warn(`⚠️ 文件【${filename}】已跳过`);
     }
     continue;
   }
   if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
-    warn(`XX 文件[${filename}]不存在或转码失败`);
+    warn(`⚠️ 文件【${filename}】不存在或转码失败`);
     ele[META_KEY.fail] = true;
     failedFile.push(filename);
     continue;
@@ -44,7 +46,7 @@ for (const ele of data) {
   ele.newBitrate = Number.parseInt(stdout.substring(stdout.indexOf('bitrate: ') + 9, stdout.indexOf(' kb/s')));
   const stat = fs.statSync(filePath);
   ele.newSize = stat.size;
-  log(`文件【${ele.filename}】: bitrate=${ele.newBitrate},newSize=${ele.newSize}`);
+  log(`文件【${ele.filename}】：码率【${ele.newBitrate}】，新大小【${ele.newSize}】`);
   ele.compressRatio = (ele.newSize / ele.size);
 }
 
@@ -133,15 +135,15 @@ const generateNewColumns = (ele) => {
   }
   return [
     cell('-'),
-    cell(ele.targetBitrate.toLocaleString()),
-    cell(formatPercent(ele.compressRatio))
+    cell(Number.isFinite(ele.targetBitrate) ? ele.targetBitrate.toLocaleString() : '-'),
+    cell(Number.isFinite(ele.compressRatio) ? formatPercent(ele.compressRatio) : '-')
   ];
 };
 
 // 辅助函数：生成数据行
 const generateRow = (ele, index) => {
   const cols = [...generateOldColumns(ele, index), ...generateNewColumns(ele)];
-  log(`文件[${ele.filename}]写入完成`);
+  log(`文件【${ele.filename}】写入完成`);
   return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
 };
 
@@ -174,8 +176,13 @@ const generateTotalRow = (data) => {
     sumCompressRatio = formatPercent(sumNewSize / sumSize);
   } else {
     const sumBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.bitrate, 0);
-    const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
-    sumCompressRatio = formatPercent(sumTargetBitrate / sumBitrate);
+    const hasTargetBitrate = data.some(cv => Number.isFinite(cv.targetBitrate));
+    if (hasTargetBitrate) {
+      const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
+      sumCompressRatio = formatPercent(sumTargetBitrate / sumBitrate);
+    } else {
+      sumCompressRatio = '-';
+    }
   }
 
   const cols = [
@@ -186,7 +193,7 @@ const generateTotalRow = (data) => {
     cell(started ? sumNewSize.toLocaleString() : '-'),
     cell('-'),
     cell('-'),
-    cell(sumCompressRatio.toLocaleString())
+    cell(sumCompressRatio)
   ];
   return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
 };
@@ -203,10 +210,10 @@ const content = `${prefix}${tbody}${tfoot}${suffix}`;
 fs.writeFileSync(previewPath, content);
 log('html写入完成');
 
-log(`以下文件压缩比大于等于${compressRatioThreshold}:`);
+log(`⚠️ 以下文件压缩比大于等于【${compressRatioThreshold}】:`);
 const warnMsg = data.filter(ele => ele.compressRatio >= compressRatioThreshold)
   .map(e => `${e.filename}: ${formatPercent(e.compressRatio)}`)
   .join(os.EOL);
 log(warnMsg);
-log('以下文件转码失败:');
-log(failedFile.join(os.EOL));
+log('❌ 以下文件转码失败:');
+log(`${failedFile.join(os.EOL)}`);
