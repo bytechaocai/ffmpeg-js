@@ -20,14 +20,22 @@ const started = fs.existsSync(`${workDir}/data.txt`);
 if (!started) {
   previewPath = `${workDir}/preview.html`;
 }
+
+// 在生成表格前统一计算目标码率与原码率的比值
+data.forEach(ele => {
+  if (!Number.isFinite(ele.bitrateRatio) && Number.isFinite(ele.targetBitrate) && Number.isFinite(ele.bitrate)) {
+    ele.bitrateRatio = ele.targetBitrate / ele.bitrate;
+  }
+  if (!started) {
+    ele.compressRatio = Number.isFinite(ele.bitrateRatio) ? ele.bitrateRatio : null;
+  }
+});
+
 for (const ele of data) {
   const filename = `${ele.basename}.mp4`;
   const filePath = `${workDir}/${filename}`;
   log(`开始处理文件【${filename}】`);
   if (!started || ele[META_KEY.ignore]) {
-    if (Number.isFinite(ele.targetBitrate) && Number.isFinite(ele.bitrate)) {
-      ele.compressRatio = ele.targetBitrate / ele.bitrate;
-    }
     if (ele[META_KEY.error]) {
       warn(`⚠️ 文件【${filename}】解析失败`);
     } else if (ele[META_KEY.ignore]) {
@@ -65,8 +73,8 @@ const cell = (content) => `<th>${content}</th>${os.EOL}`;
 // 辅助函数：格式化百分比
 const formatPercent = (ratio) => ratio.toLocaleString('zh-cn', { style: 'percent' });
 
-// 辅助函数：生成旧数据列（序号、文件名、分辨率、时长、原大小、原码率）
-const generateOldColumns = (ele, index) => {
+// 辅助函数：生成完整数据行，列顺序必须与表头一致
+const generateColumns = (ele, index) => {
   // error不为空：解析失败，显示错误信息
   if (ele[META_KEY.error]) {
     return [
@@ -75,18 +83,30 @@ const generateOldColumns = (ele, index) => {
       cell(ele.error),
       cell(ele.error),
       cell(ele.size.toLocaleString()),
-      cell(ele.error)
+      cell('-'),
+      cell(ele.error),
+      cell('-'),
+      cell('-')
     ];
   }
   // ignore不为空：跳过转码
   if (ele[META_KEY.ignore]) {
+    const ignoreMessage = ele[META_KEY.ignoreReason]
+      ? `跳过转码（${ele[META_KEY.ignoreReason]}）`
+      : '跳过转码';
+    const bitrateRatio = Number.isFinite(ele[META_KEY.bitrateRatio])
+      ? formatPercent(ele[META_KEY.bitrateRatio])
+      : '-';
     return [
       cell(index + 1),
       cell(ele.filename),
       cell(ele.scale),
       cell(ele.duration),
       cell(ele.size.toLocaleString()),
-      cell(ele.bitrate.toLocaleString())
+      cell(ignoreMessage),
+      cell(ele.bitrate.toLocaleString()),
+      cell(Number.isFinite(ele.targetBitrate) ? ele.targetBitrate.toLocaleString() : '-'),
+      cell(bitrateRatio)
     ];
   }
   // fail不为空：转码失败
@@ -97,44 +117,33 @@ const generateOldColumns = (ele, index) => {
       cell(ele.scale),
       cell(ele.duration),
       cell(ele.size.toLocaleString()),
-      cell(ele.bitrate.toLocaleString())
+      cell('转码失败'),
+      cell(ele.bitrate.toLocaleString()),
+      cell('转码失败'),
+      cell('转码失败')
     ];
   }
-  // 正常情况
+  if (started) {
+    return [
+      cell(index + 1),
+      cell(ele.filename),
+      cell(ele.scale),
+      cell(ele.duration),
+      cell(ele.size.toLocaleString()),
+      cell(ele.newSize.toLocaleString()),
+      cell(ele.bitrate.toLocaleString()),
+      cell(ele.newBitrate.toLocaleString()),
+      cell(formatPercent(ele.compressRatio))
+    ];
+  }
   return [
     cell(index + 1),
     cell(ele.filename),
     cell(ele.scale),
     cell(ele.duration),
     cell(ele.size.toLocaleString()),
-    cell(ele.bitrate.toLocaleString())
-  ];
-};
-
-// 辅助函数：生成新数据列（新大小、新码率、压缩比）
-const generateNewColumns = (ele) => {
-  // error不为空：解析失败，只显示文件大小
-  if (ele[META_KEY.error]) {
-    return [cell(ele.newSize?.toLocaleString() || '-'), cell('-'), cell('-')];
-  }
-  // ignore不为空：跳过转码，新数据显示跳过转码
-  if (ele[META_KEY.ignore]) {
-    return [cell('跳过转码'), cell('跳过转码'), cell('跳过转码')];
-  }
-  // fail不为空：转码失败，新数据显示转码失败
-  if (ele[META_KEY.fail]) {
-    return [cell('转码失败'), cell('转码失败'), cell('转码失败')];
-  }
-  // 正常情况
-  if (started) {
-    return [
-      cell(ele.newSize.toLocaleString()),
-      cell(ele.newBitrate.toLocaleString()),
-      cell(formatPercent(ele.compressRatio))
-    ];
-  }
-  return [
     cell('-'),
+    cell(ele.bitrate.toLocaleString()),
     cell(Number.isFinite(ele.targetBitrate) ? ele.targetBitrate.toLocaleString() : '-'),
     cell(Number.isFinite(ele.compressRatio) ? formatPercent(ele.compressRatio) : '-')
   ];
@@ -142,7 +151,7 @@ const generateNewColumns = (ele) => {
 
 // 辅助函数：生成数据行
 const generateRow = (ele, index) => {
-  const cols = [...generateOldColumns(ele, index), ...generateNewColumns(ele)];
+  const cols = generateColumns(ele, index);
   log(`文件【${ele.filename}】写入完成`);
   return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
 };

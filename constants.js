@@ -12,6 +12,9 @@ const META_KEY = {
   command: 'command',
   // 忽略标记：表示跳过转码（如新码率>=旧码率），与error是完全不同的类型
   ignore: 'ignore',
+  ignoreReason: 'ignoreReason',
+  bitrateRatio: 'bitrateRatio',
+  bitrateRatioThreshold: 'bitrateRatioThreshold',
   targetBitrate: 'targetBitrate',
   // 错误信息：记录具体的解析失败原因（如"读取时长失败"、"读取分辨率失败"、"元数据缺失"等）
   // 与ignore不同：error表示解析阶段出错，ignore表示业务规则跳过

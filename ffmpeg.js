@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { parseArgs } = require('util');
 const { log, error, warn } = require('console');
 const { META_KEY } = require('./constants');
 
@@ -14,16 +15,32 @@ const metaFile = "meta.txt";
 const VIDEO_LINE = "Video: ";
 // 共享数据文件
 const dataJson = 'data.json';
+const audioBitrate = 128;
 
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
  */
-if (process.argv.length < 3) {
-  error('❌ 参数错误');
+let options;
+let positionals;
+try {
+  ({ values: options, positionals } = parseArgs({
+    options: {
+      bitrate: { type: 'string', short: 'b' },
+      threshold: { type: 'string', short: 't' }
+    },
+    allowPositionals: true
+  }));
+} catch (e) {
+  error(`❌ 参数错误：${e.message}`);
   process.exit(1);
 }
 
-const workDir = process.argv[2];
+if (positionals.length !== 1) {
+  error('❌ 用法：node ffmpeg.js <目录> [-b 基准码率] [-t 最大码率比]');
+  process.exit(1);
+}
+
+const workDir = positionals[0];
 log(`当前目录:${workDir}`);
 
 const metaPath = path.join(workDir, metaFile);
@@ -48,9 +65,19 @@ const dataPath = path.join(workDir, dataJson);
 const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
 
-// 基准分辨率，没有输入分辨率时由ffmpeg自己选择分辨率
-if (process.argv.length === 4) {
-  const baseBitrate = Number.parseInt(process.argv[3]);
+// 基准码率，没有输入时由ffmpeg自行决定视频码率
+const hasBaseBitrate = options.bitrate !== undefined;
+const bitrateRatioThreshold = options.threshold === undefined ? null : Number.parseFloat(options.threshold);
+if (bitrateRatioThreshold !== null && (!Number.isFinite(bitrateRatioThreshold) || bitrateRatioThreshold < 0)) {
+  error('❌ 最大码率比必须是非负数');
+  process.exit(1);
+}
+if (hasBaseBitrate) {
+  const baseBitrate = Number.parseInt(options.bitrate);
+  if (!Number.isFinite(baseBitrate) || baseBitrate <= 0) {
+    error('❌ 基准码率必须是正数');
+    process.exit(1);
+  }
   log(`将使用基准分辨率:${baseBitrate}`);
   bitrateData.forEach(res => {
     res.bitrate = res.magnification * baseBitrate;
@@ -184,17 +211,30 @@ data.forEach(e => {
     e.error = meta.get(META_KEY.error);
     return;
   }
-  const newBitrate = getBitRate(meta.pixelCount);
-  let videoBitrate = process.argv.length == 4 ? `-b:v ${newBitrate}k` : '';
+  const newBitrate = hasBaseBitrate ? getBitRate(meta.pixelCount) : null;
+  const videoBitrate = hasBaseBitrate ? `-b:v ${newBitrate}k` : '';
   e.targetBitrate = newBitrate;
-  // 要加上音频分辨率，大部分时候音频都是128
-  if ((newBitrate + 128) >= e.bitrate) {
+  e.audioBitrate = audioBitrate;
+  if (hasBaseBitrate && bitrateRatioThreshold !== null) {
+    const bitrateRatio = newBitrate / e.bitrate;
+    e.bitrateRatio = bitrateRatio;
+    e.bitrateRatioThreshold = bitrateRatioThreshold;
+    if (bitrateRatio > bitrateRatioThreshold) {
+      e.ignoreReason = `码率比【${bitrateRatio}】高于阈值【${bitrateRatioThreshold}】`;
+      log(`⚠️ 文件【${e.filename}】${e.ignoreReason}，跳过转码`);
+      e.ignore = true;
+      ignoredArray.push(e);
+      return;
+    }
+  }
+  if (hasBaseBitrate && bitrateRatioThreshold === null && (newBitrate) >= e.bitrate) {
     log(`⚠️ 文件【${e.filename}】的新码率【${newBitrate}】大于等于旧码率，跳过转码`);
     e.ignore = true;
+    e.ignoreReason = '新码率大于等于旧码率';
     ignoredArray.push(e);
     return;
   }
-  e.command = `ffmpeg -hide_banner -hwaccel cuda -y -i "${e.basename}_${e.extname}" -c:a aac -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
+  e.command = `ffmpeg -hide_banner -hwaccel cuda -y -i "${e.basename}_${e.extname}" -c:a aac -b:a ${audioBitrate}k -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
 });
 
 // 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
@@ -208,7 +248,7 @@ data.filter(p => !p.ignore && p.command).forEach((f, i) => {
 fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
 log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳过转码:');
 ignoredArray.forEach(ele => {
-  log(`文件【${ele.filename}】分辨率【${ele.scale}】，原码率【${ele.bitrate}】，新码率【${ele.targetBitrate}】`);
+  log(`文件【${ele.filename}】分辨率【${ele.scale}】，原码率【${ele.bitrate}】，新码率【${ele.targetBitrate}】，原因【${ele.ignoreReason}】`);
 });
 log('❌ 以下文件出错，请检查:');
 errorArray.forEach(ele => {
