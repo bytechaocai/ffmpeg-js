@@ -19,6 +19,8 @@ const compressBatch = "5_7zip.bat";
 const metaFile = "meta.txt";
 // 视频文件扩展名，ext中也是扩展名数组
 const extArray = ['avi', 'mp4'].concat(ext);
+const extSet = new Set();
+extArray.forEach(e => extSet.add(e.toLowerCase()));
 // 共享数据，里面包含要转码的文件的信息：文件名，时长，大小，分辨率，旧码率，新码率，元数据里的创建时间。
 const dataArray = [];
 // 共享数据文件
@@ -100,7 +102,7 @@ console.log(`当前目录有【${files.length}】个文件`);
 for (const ele of files) {
   // 跳过非视频文件，这样就不用在转码时加额外判断。
   // 扩展名一般是小写，但是部分场景下是大写，由创建文件的人决定
-  if (extArray.findIndex((v, i, o) => ele.endsWith(v) || ele.endsWith(v.toUpperCase())) == -1) {
+  if (!extSet.has(ele.toLowerCase().slice(-extArray[0].length))) {
     console.log(`⚠️ 文件【${ele}】不是视频文件`);
     continue;
   }

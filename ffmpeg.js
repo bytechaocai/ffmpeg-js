@@ -16,6 +16,7 @@ const VIDEO_LINE = "Video: ";
 // 共享数据文件
 const dataJson = 'data.json';
 const audioBitrate = 128;
+const USAGE = '用法: node ffmpeg.js [-b <bitrate>] [-t <threshold>] <directory>';
 
 /**
  * 输入指定目录，遍历其中的视频文件并以html表格形式输出文件名，文件大小，比特率，长度，格式
@@ -32,11 +33,12 @@ try {
   }));
 } catch (e) {
   error(`❌ 参数错误：${e.message}`);
+  error(USAGE);
   process.exit(1);
 }
 
 if (positionals.length !== 1) {
-  error('❌ 用法：node ffmpeg.js <目录> [-b 基准码率] [-t 最大码率比]');
+  error(`❌ ${USAGE}`);
   process.exit(1);
 }
 
@@ -64,10 +66,18 @@ const batchPath = path.join(workDir, batchFile);
 const dataPath = path.join(workDir, dataJson);
 const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
+// 初始状态下，data.json之应该保存解析ffprobe.js的结果，后续会在data.json，这里应该手动清空解析字段，保留原始字段
+const fieldKeys = Object.keys(META_KEY).filter(key => !META_KEY.reservedFields.has(key));
+data.forEach(ele => {
+  fieldKeys.forEach(key => {
+    delete ele[key];
+  });
+});
+
 
 // 基准码率，没有输入时由ffmpeg自行决定视频码率
 const hasBaseBitrate = options.bitrate !== undefined;
-const bitrateRatioThreshold = options.threshold === undefined ? null : Number.parseFloat(options.threshold);
+const bitrateRatioThreshold = options.threshold === undefined ? 1 : Number.parseFloat(options.threshold);
 if (bitrateRatioThreshold !== null && (!Number.isFinite(bitrateRatioThreshold) || bitrateRatioThreshold < 0)) {
   error('❌ 最大码率比必须是非负数');
   process.exit(1);
@@ -130,6 +140,8 @@ const errorArray = [];
 for (const line of fileContent) {
   if (line.startsWith('===')) {
     currentMeta = new Map();
+    // 一共解析三个字段，文件名、时长、分辨率。解析出错时该值不为0，表示还有字段没有解析成功
+    currentMeta.set(META_KEY.parsedFieldCount, 3);
     processError = false;
     fileIndex++;
   }
@@ -144,6 +156,7 @@ for (const line of fileContent) {
       log(`开始处理文件【${filename}】`);
       metaMap.set(filename, currentMeta);
       currentMeta.set(META_KEY.filename, filename);
+      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
     } catch (e) {
       error(`读取文件名失败，错误信息【${e.message}】`);
       processError = true;
@@ -159,6 +172,7 @@ for (const line of fileContent) {
       // 包含音频的码率
       // 偏移量=下标+1+bitrate.length
       currentMeta.set(META_KEY.bitrate, Number.parseInt(line.substring(line.indexOf('bitrate: ') + 9, line.lastIndexOf(' kb/s'))));
+      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
     } catch (e) {
       error(`❌ 文件【${filename}】读取时长失败`, e);
       processError = true;
@@ -178,6 +192,7 @@ for (const line of fileContent) {
 
       // 分辨率
       currentMeta.set(META_KEY.scale, `${scaleMatch[1]}x${scaleMatch[2]}`);
+      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
     } catch (error) {
       error(`❌ 文件【${filename}】读取分辨率失败`, e);
       processError = true;
@@ -211,26 +226,16 @@ data.forEach(e => {
     e.error = meta.get(META_KEY.error);
     return;
   }
-  const newBitrate = hasBaseBitrate ? getBitRate(meta.pixelCount) : null;
+  const newBitrate = hasBaseBitrate ? getBitRate(meta.get(META_KEY.pixelCount)) : null;
   const videoBitrate = hasBaseBitrate ? `-b:v ${newBitrate}k` : '';
   e.targetBitrate = newBitrate;
   e.audioBitrate = audioBitrate;
-  if (hasBaseBitrate && bitrateRatioThreshold !== null) {
-    const bitrateRatio = newBitrate / e.bitrate;
-    e.bitrateRatio = bitrateRatio;
-    e.bitrateRatioThreshold = bitrateRatioThreshold;
-    if (bitrateRatio > bitrateRatioThreshold) {
-      e.ignoreReason = `码率比【${bitrateRatio}】高于阈值【${bitrateRatioThreshold}】`;
-      log(`⚠️ 文件【${e.filename}】${e.ignoreReason}，跳过转码`);
-      e.ignore = true;
-      ignoredArray.push(e);
-      return;
-    }
-  }
-  if (hasBaseBitrate && bitrateRatioThreshold === null && (newBitrate) >= e.bitrate) {
-    log(`⚠️ 文件【${e.filename}】的新码率【${newBitrate}】大于等于旧码率，跳过转码`);
+  const bitrateRatio = newBitrate / e.bitrate;
+  e.bitrateRatio = bitrateRatio;
+  if (bitrateRatio > bitrateRatioThreshold) {
+    e.ignoreReason = `压缩率【${bitrateRatio}】高于阈值【${bitrateRatioThreshold}】`;
+    log(`⚠️ 文件【${e.filename}】${e.ignoreReason}，跳过转码`);
     e.ignore = true;
-    e.ignoreReason = '新码率大于等于旧码率';
     ignoredArray.push(e);
     return;
   }

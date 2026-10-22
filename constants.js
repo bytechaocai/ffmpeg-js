@@ -26,7 +26,11 @@ const META_KEY = {
   // 新文件大小
   newSize: 'newSize',
   // 压缩比
-  compressRatio: 'compressRatio'
+  compressRatio: 'compressRatio',
+  // 已解析字段数量
+  parsedFieldCount: 'parsedFieldCount',
+  // 要删除的字段：用于在ffmpeg.js中清理data.json中的解析字段，保留原始字段
+  reservedFields: new Set(['filename', 'basename', 'extname', 'size'])
 };
 
 module.exports = { META_KEY };
