@@ -6,11 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>titlePlaceholder</title>
   <style>
+    * {
+      font-family: "Microsoft YaHei", "Microsoft YaHei UI", sans-serif;
+    }
+
     /* 样式表来源：mdn table示例 */
     table {
       border-collapse: collapse;
       border: 2px solid rgb(140 140 140);
-      font-family: sans-serif;
       font-size: 0.8rem;
       letter-spacing: 1px;
     }
@@ -51,8 +54,15 @@
 </head>
 
 <body>
+  <p>转码目录: directoryPlaceholder</p>
+  <p>注意事项：</p>
+  <ul>
+    <li>预览页面的新码率仅供参考，应该以实际结果为准。</li>
+    <li>预览页的新码率不包含音频，结果页的新码率包含音频，转码时给的128kb/s，以实际为准。</li>
+    <li>时长列合计不计算毫秒。</li>
+  </ul>
   <table>
-    <caption>titlePlaceholder</caption>
+    <caption hidden>titlePlaceholder</caption>
     <thead>
       <tr>
         <th>序号</th>

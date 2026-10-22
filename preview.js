@@ -62,7 +62,8 @@ for (const ele of data) {
 log('开始写入html');
 
 const html = fs.readFileSync('preview.html').toString()
-  .replaceAll('titlePlaceholder', started ? '转码结果总结' : '转码结果预览');
+  .replaceAll('titlePlaceholder', started ? '转码结果总结' : '转码结果预览')
+  .replaceAll('directoryPlaceholder', workDir);
 // 直接替换，用下标来避免修改html后改代码。
 const index = html.lastIndexOf('<tbody />');
 const prefix = html.substring(0, index);
@@ -199,7 +200,8 @@ const generateTotalRow = (data) => {
   }
 
   const cols = [
-    `<th colspan="2">合计</th>${os.EOL}`,
+    `<th>合计</th>${os.EOL}`,
+    cell('-'),
     cell('-'),
     cell(sumDuration),
     cell(sumSize.toLocaleString()),
