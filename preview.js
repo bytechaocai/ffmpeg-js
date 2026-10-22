@@ -61,7 +61,8 @@ for (const ele of data) {
 
 log('开始写入html');
 
-const html = fs.readFileSync('preview.html').toString();
+const html = fs.readFileSync('preview.html').toString()
+  .replaceAll('titlePlaceholder', started ? '转码结果总结' : '转码结果预览');
 // 直接替换，用下标来避免修改html后改代码。
 const index = html.lastIndexOf('<tbody />');
 const prefix = html.substring(0, index);
