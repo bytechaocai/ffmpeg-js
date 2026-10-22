@@ -51,6 +51,7 @@ for (const ele of data) {
   }
   const cmd = `ffprobe -hide_banner "${filePath}" 2>&1`;
   const stdout = cps.execSync(cmd, { cwd: workDir }).toString();
+  // 这里计算的其实是视频+音频的总码率，音频码率是几乎固定的的，实际转码出来有浮动但是不多，这里忽略，直接算进视频码率。
   ele.newBitrate = Number.parseInt(stdout.substring(stdout.indexOf('bitrate: ') + 9, stdout.indexOf(' kb/s')));
   const stat = fs.statSync(filePath);
   ele.newSize = stat.size;
@@ -75,6 +76,7 @@ const formatPercent = (ratio) => ratio.toLocaleString('zh-cn', { style: 'percent
 
 // 辅助函数：生成完整数据行，列顺序必须与表头一致
 const generateColumns = (ele, index) => {
+  // 判断顺序按代码执行顺序，这样可以提前发现错误然后直接返回
   // error不为空：解析失败，显示错误信息
   if (ele[META_KEY.error]) {
     return [
@@ -153,7 +155,7 @@ const generateColumns = (ele, index) => {
 const generateRow = (ele, index) => {
   const cols = generateColumns(ele, index);
   log(`文件【${ele.filename}】写入完成`);
-  return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
+  return `<tr>${os.EOL}${cols.join('')}</tr>${os.EOL}`;
 };
 
 // 辅助函数：计算总时长
@@ -185,6 +187,7 @@ const generateTotalRow = (data) => {
     sumCompressRatio = formatPercent(sumNewSize / sumSize);
   } else {
     const sumBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.bitrate, 0);
+    // 检查如果有文件设置了目标码率，则计算总压缩比，否则显示为'-'
     const hasTargetBitrate = data.some(cv => Number.isFinite(cv.targetBitrate));
     if (hasTargetBitrate) {
       const sumTargetBitrate = data.reduce((pv, cv) => cv.fail || cv.ignore ? pv : pv + cv.targetBitrate, 0);
@@ -204,15 +207,15 @@ const generateTotalRow = (data) => {
     cell('-'),
     cell(sumCompressRatio)
   ];
-  return `      <tr>${os.EOL}${cols.join('')}      </tr>${os.EOL}`;
+  return `<tr>${os.EOL}${cols.join('')}</tr>${os.EOL}`;
 };
 
 // 构建表格内容
 const tbodyContent = data.map((ele, i) => generateRow(ele, i)).join('');
-const tbody = `    <tbody>\r\n${tbodyContent}    </tbody>\r\n`;
+const tbody = `<tbody>\r\n${tbodyContent}</tbody>\r\n`;
 
 // 合计行
-const tfoot = `    <tfoot>\r\n${generateTotalRow(data)}    </tfoot>\r\n`;
+const tfoot = `<tfoot>\r\n${generateTotalRow(data)}</tfoot>\r\n`;
 
 // 一次性写入文件
 const content = `${prefix}${tbody}${tfoot}${suffix}`;
