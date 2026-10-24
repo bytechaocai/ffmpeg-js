@@ -15,7 +15,6 @@ const metaFile = "meta.txt";
 const VIDEO_LINE = "Video: ";
 // 共享数据文件
 const dataJson = 'data.json';
-const audioBitrate = 128;
 const USAGE = '用法: node ffmpeg.js [-b <bitrate>] [-t <threshold>] <directory>';
 
 /**
@@ -66,14 +65,13 @@ const batchPath = path.join(workDir, batchFile);
 const dataPath = path.join(workDir, dataJson);
 const data = JSON.parse(fs.readFileSync(dataPath).toString());
 
-// 初始状态下，data.json之应该保存解析ffprobe.js的结果，后续会在data.json，这里应该手动清空解析字段，保留原始字段
+// 初始状态下，data.json只应该保存解析ffprobe.js的结果，后续会在data.json，这里应该手动清空解析字段，保留原始字段
 const fieldKeys = Object.keys(META_KEY).filter(key => !META_KEY.reservedFields.has(key));
 data.forEach(ele => {
   fieldKeys.forEach(key => {
     delete ele[key];
   });
 });
-
 
 // 基准码率，没有输入时由ffmpeg自行决定视频码率
 const hasBaseBitrate = options.bitrate !== undefined;
@@ -128,8 +126,9 @@ function getBitRate(pixelCount) {
 
 // 保存元数据
 const metaMap = new Map();
-// data.json中的数组下标。data.json中的顺序和meta.txt中的顺序一样，下标可以直接用
 let currentMeta;
+// 已经解析的字段。ffmpeg本身转码不需要这些字段，但会影响预览。
+let currentFieldsArray;
 let filename;
 // 是否继续处理。解析出错时该值为true，此使跳过所有解析直到下一个分隔符
 let processError = false;
@@ -137,11 +136,14 @@ let processError = false;
 // 这里的顺序是1_meta.bat里的顺序，不是data.json中的顺序，因为1_meta.bat报错时，元数据文件数可能会比data.json少。
 let fileIndex = 0;
 const errorArray = [];
+
+log('>>>>>>开始解析元数据');
 for (const line of fileContent) {
   if (line.startsWith('===')) {
     currentMeta = new Map();
-    // 一共解析三个字段，文件名、时长、分辨率。解析出错时该值不为0，表示还有字段没有解析成功
-    currentMeta.set(META_KEY.parsedFieldCount, 3);
+    // 解析字段：码率，时长，分辨率。
+    currentFieldsArray = [];
+    currentMeta.set(META_KEY.parsedFields, currentFieldsArray);
     processError = false;
     fileIndex++;
   }
@@ -156,7 +158,8 @@ for (const line of fileContent) {
       log(`开始处理文件【${filename}】`);
       metaMap.set(filename, currentMeta);
       currentMeta.set(META_KEY.filename, filename);
-      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
+      // 文件名是key，不需要单独记录
+      // currentFieldsSet.add(META_KEY.filename);
     } catch (e) {
       error(`读取文件名失败，错误信息【${e.message}】`);
       processError = true;
@@ -172,7 +175,7 @@ for (const line of fileContent) {
       // 包含音频的码率
       // 偏移量=下标+1+bitrate.length
       currentMeta.set(META_KEY.bitrate, Number.parseInt(line.substring(line.indexOf('bitrate: ') + 9, line.lastIndexOf(' kb/s'))));
-      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
+      currentFieldsArray.push(META_KEY.bitrate);
     } catch (e) {
       error(`❌ 文件【${filename}】读取时长失败`, e);
       processError = true;
@@ -192,15 +195,17 @@ for (const line of fileContent) {
 
       // 分辨率
       currentMeta.set(META_KEY.scale, `${scaleMatch[1]}x${scaleMatch[2]}`);
-      currentMeta.set(META_KEY.parsedFieldCount, currentMeta.get(META_KEY.parsedFieldCount) - 1);
+      currentFieldsArray.push(META_KEY.scale);
     } catch (error) {
-      error(`❌ 文件【${filename}】读取分辨率失败`, e);
+      error(`❌ 文件【${filename}】读取分辨率失败`, error);
       processError = true;
       currentMeta.set(META_KEY.error, error.message);
       errorArray.push(`文件【${filename}】读取分辨率失败，序号为【${fileIndex}】`);
     }
   }
 }
+
+log('>>>>>>元数据解析完成，开始计算码率');
 
 // 忽略文件
 const ignoredArray = [];
@@ -229,9 +234,9 @@ data.forEach(e => {
   const newBitrate = hasBaseBitrate ? getBitRate(meta.get(META_KEY.pixelCount)) : null;
   const videoBitrate = hasBaseBitrate ? `-b:v ${newBitrate}k` : '';
   e.targetBitrate = newBitrate;
-  e.audioBitrate = audioBitrate;
   const bitrateRatio = newBitrate / e.bitrate;
   e.bitrateRatio = bitrateRatio;
+  // 没有输入码率时，固定是false，不执行操作。
   if (bitrateRatio > bitrateRatioThreshold) {
     e.ignoreReason = `压缩率【${bitrateRatio}】高于阈值【${bitrateRatioThreshold}】`;
     log(`⚠️ 文件【${e.filename}】${e.ignoreReason}，跳过转码`);
@@ -239,29 +244,33 @@ data.forEach(e => {
     ignoredArray.push(e);
     return;
   }
-  e.command = `ffmpeg -hide_banner -hwaccel cuda -y -i "${e.basename}_${e.extname}" -c:a aac -b:a ${audioBitrate}k -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
+  e.command = `ffmpeg -hide_banner -hwaccel cuda -y -i "${e.basename}_${e.extname}" -c:a aac -b:a ${META_KEY.audioBitrate}k -c:v av1_nvenc ${videoBitrate} "${e.basename}.mp4"${os.EOL}`;
 });
 
-// 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间
+// 转码过程不需要写入日志，看着就行。data.txt用来在预览时判断任务有没有运行以及运行时间，因此要用新增不能用追加
 fs.writeFileSync(batchPath, 'echo %date% %time%> data.txt\r\n');
-log('写入批量脚本');
+log('>>>>>>码率解析完成，开始写入批量作业');
 data.filter(p => !p.ignore && p.command).forEach((f, i) => {
-  log(`执行命令【${f.command.trim()}】`);
+  log(`写入命令【${f.filename}】->【${f.command.trim()}】`);
   fs.appendFileSync(batchPath, `echo 视频时长: ${f.duration}, 当前进度: ${i + 1}/${data.length}${os.EOL}`);
   fs.appendFileSync(batchPath, f.command);
 });
 fs.appendFileSync(batchPath, 'echo %date% %time%>> data.txt');
-log('批量脚本写入完成,以下文件新码率大于等于旧码率，跳过转码:');
+log('>>>>>>批量作业写入完成');
+
+warn('⚠️ 以下文件新码率大于等于旧码率，跳过转码:')
 ignoredArray.forEach(ele => {
-  log(`文件【${ele.filename}】分辨率【${ele.scale}】，原码率【${ele.bitrate}】，新码率【${ele.targetBitrate}】，原因【${ele.ignoreReason}】`);
+  warn(`文件【${ele.filename}】分辨率【${ele.scale}】，原码率【${ele.bitrate}】，新码率【${ele.targetBitrate}】，原因【${ele.ignoreReason}】`);
 });
-log('❌ 以下文件出错，请检查:');
+warn('❌ 以下文件出错，请检查:');
 errorArray.forEach(ele => {
-  log(ele);
+  warn(ele);
 });
-log('⚠️ 以下文件没有元数据，请检查:');
+warn('⚠️ 以下文件没有元数据，请检查:');
 noMetaArray.forEach(ele => {
-  log(ele);
+  warn(ele);
 });
+
+
 fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 log('数据文件写入完成');
